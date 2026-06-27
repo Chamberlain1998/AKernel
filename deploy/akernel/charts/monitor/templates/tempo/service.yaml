@@ -1,0 +1,33 @@
+{{- if .Values.tempo.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.tempo.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: tempo
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.tempo.service.type }}
+  {{- if .Values.tempo.service.isHeadless }}
+  clusterIP: None
+  {{- end }}
+  ports:
+  - port: {{ .Values.tempo.service.ports.http }}
+    targetPort: {{ .Values.tempo.service.ports.http }}
+    protocol: TCP
+    name: http
+  - port: {{ .Values.tempo.service.ports.otlpGrpc }}
+    targetPort: {{ .Values.tempo.service.ports.otlpGrpc }}
+    protocol: TCP
+    name: otlp-grpc
+  - port: {{ .Values.tempo.service.ports.otlpHttp }}
+    targetPort: {{ .Values.tempo.service.ports.otlpHttp }}
+    protocol: TCP
+    name: otlp-http
+  selector:
+    component: tempo
+{{- end }}

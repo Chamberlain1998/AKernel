@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.grafanaServer.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+  {{- with .Values.grafanaServer.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.grafanaServer.service.type }}
+  {{- if .Values.grafanaServer.service.isHeadless }}
+  clusterIP: None
+  {{- end }}
+  ports:
+    - port: {{ .Values.grafanaServer.service.port }}
+      targetPort: {{ .Values.grafanaServer.service.targetPort }}
+      protocol: {{ .Values.grafanaServer.service.protocol }}
+      name: {{ .Values.grafanaServer.service.name }}
+  selector:
+    component: grafana

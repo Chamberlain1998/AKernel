@@ -1,0 +1,9 @@
+apiVersion: v2
+name: monitor
+description: Prometheus, Grafana, Loki, and Tempo for AKernel observability
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/akernel-dev/akernel
+sources:
+  - https://github.com/akernel-dev/akernel

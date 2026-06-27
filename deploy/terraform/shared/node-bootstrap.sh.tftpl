@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Copyright (c) 2026 Ant Group Corporation.
+#
+# SPDX-License-Identifier: Apache-2.0
+set -euo pipefail
+
+%{ if sandboxd_nat_backend == "iptables" ~}
+# ip_tables required for iptables NAT backend
+cat >/etc/systemd/system/akernel-modprobe-ip-tables.service <<'EOF'
+[Unit]
+Description=Load ip_tables kernel module on boot
+After=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'modprobe ip_tables'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable akernel-modprobe-ip-tables.service
+systemctl start akernel-modprobe-ip-tables.service
+%{ endif ~}
+
+# Enable user namespaces (required by gVisor/runsc).
+#
+# user_data only runs on first boot, so a plain `sysctl -w` does not survive a
+# reboot. A regular sysctl.d drop-in is not enough either: ACK's ack-reconfig
+# service rewrites /etc/sysctl.d/99-k8s.conf with user.max_user_namespaces=0 on
+# every boot.
+#
+# ACK provides a blessed override file for exactly this: /etc/sysctl.d/99-user-
+# customized.conf. ack-reconfig explicitly runs `sysctl -p` on it as the LAST
+# step of every boot (after resetting 99-k8s.conf to 0), so values here win and
+# persist across reboots. Verified on cn-hongkong: reconfig sets 0, then loads
+# 99-user-customized.conf back to ${max_user_namespaces}, survives reboots.
+# Ref: https://help.aliyun.com/zh/ack/ack-managed-and-ack-dedicated/user-guide/custom-node-pool-os-parameters
+echo "user.max_user_namespaces=${max_user_namespaces}" > /etc/sysctl.d/99-user-customized.conf
+sysctl -w user.max_user_namespaces=${max_user_namespaces}

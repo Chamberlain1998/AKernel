@@ -1,0 +1,237 @@
+createNamespace: true
+
+kruise:
+  enabled: false
+
+labels:
+  app: grafana
+
+extraLabels: {}
+
+service:
+  port: 1234
+
+grafanaServer:
+  prometheus:
+    name: Prometheus
+    url: http://prometheus:9090
+    timeInterval: "10s"
+    httpMethod: "POST"
+    isDefault: true
+    uid: prometheus
+    exemplarTraceIdDatasourceUid: tempo
+
+  loki:
+    enabled: true
+    name: Loki
+    url: http://loki:3100
+    uid: loki
+    maxLines: 1000
+    derivedField:
+      name: traceID
+      matcherRegex: "traceID=(\\w+)"
+      url: "$${__value.raw}"
+      datasourceUid: tempo
+      matcherType: regex
+
+  tempo:
+    enabled: true
+    name: Tempo
+    url: http://tempo:3200
+    uid: tempo
+    tracesToLogs:
+      datasourceUid: loki
+      spanStartTimeShift: "-1h"
+      spanEndTimeShift: "1h"
+      filterByTraceID: false
+      filterBySpanID: false
+    tracesToMetrics:
+      datasourceUid: prometheus
+      spanStartTimeShift: "-1h"
+      spanEndTimeShift: "1h"
+    serviceMap:
+      datasourceUid: prometheus
+    nodeGraph:
+      enabled: true
+    lokiSearch:
+      datasourceUid: loki
+
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 20Gi
+    accessMode: ReadWriteOnce
+
+  service:
+    name: grafana
+    type: ClusterIP
+    isHeadless: false
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+
+  image:
+    repository: grafana/grafana
+    tag: 11.5.2
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+      ephemeral-storage: "1Gi"
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+      ephemeral-storage: "1Gi"
+
+  env:
+    adminUser: "admin"
+    # Empty generates a random password and reuses the existing Secret value
+    # on later Helm upgrades.
+    adminPassword: ""
+    rootUrl: "http://localhost/grafana/"
+    serveFromSubPath: true
+    secretName: grafana-secret
+    secretKey: admin-password
+    disablePluginPreinstall: true
+    installPlugins: ""
+
+loki:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: grafana/loki
+    tag: 3.4.2
+    pullPolicy: IfNotPresent
+  service:
+    name: loki
+    type: ClusterIP
+    isHeadless: false
+    port: 3100
+    targetPort: 3100
+    protocol: TCP
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1"
+      ephemeral-storage: "1Gi"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+      ephemeral-storage: "1Gi"
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 20Gi
+    accessMode: ReadWriteOnce
+
+tempo:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: grafana/tempo
+    tag: 2.7.1
+    pullPolicy: IfNotPresent
+  waitForPrometheusImage:
+    repository: busybox
+    tag: 1.37.0-musl
+    pullPolicy: IfNotPresent
+  service:
+    name: tempo
+    type: ClusterIP
+    isHeadless: false
+    ports:
+      http: 3200
+      otlpGrpc: 4317
+      otlpHttp: 4318
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1"
+      ephemeral-storage: "1Gi"
+    limits:
+      memory: "2Gi"
+      cpu: "1"
+      ephemeral-storage: "1Gi"
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 20Gi
+    accessMode: ReadWriteOnce
+
+prometheusServer:
+  replicaCount: 1
+  service:
+    name: prometheus
+    type: ClusterIP
+    isHeadless: false
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  image:
+    repository: prom/prometheus
+    tag: v3.2.1
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+      ephemeral-storage: "1Gi"
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+      ephemeral-storage: "1Gi"
+
+  persistence:
+    storageClass: ""
+    size: 20Gi
+    accessMode: ReadWriteOnce
+
+  config:
+    clusterName: 'yuanrong-frontend'
+    environment: 'kubernetes'
+    retentionTime: '30d'
+    controlPlanePods:
+      enabled: true
+      namespaces:
+        - "akernel"
+      labelSelector: ""
+      targetContainerRegex: "akernel-master|akernel-frontend|etcd|traefik|manager|scheduler|seed-client|mysql|redis"
+      targetPortNameRegex: "http|client|dashboard|mysql|redis"
+      targetPortNumberRegex: "8000|4002|3306|6379"
+      kubelet:
+        scheme: https
+        port: 10250
+        insecureSkipVerify: true
+      resourceMetrics:
+        enabled: true
+        scrapeInterval: 30s
+        scrapeTimeout: 10s
+      diskMetrics:
+        enabled: true
+        scrapeInterval: 120s
+        scrapeTimeout: 10s
+    persistentVolumeClaims:
+      enabled: true
+      namespaces:
+        - "akernel-monitor"
+      kubelet:
+        scheme: https
+        port: 10250
+        insecureSkipVerify: true
+      scrapeInterval: 60s
+      scrapeTimeout: 10s
+    dragonflyMetrics:
+      enabled: false
+      namespaces:
+        - "dragonfly-system-common-akernel"
+      scrapeInterval: 30s
+      scrapeTimeout: 10s
+    namespaces:
+      - "akernel"
+      - "akernel-monitor"
+    pushgateways: []

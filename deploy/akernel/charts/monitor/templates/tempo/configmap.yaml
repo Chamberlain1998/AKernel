@@ -1,0 +1,16 @@
+{{- if .Values.tempo.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: tempo
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  config.yaml: |
+{{ .Files.Get "files/tempo/config.yaml" | indent 4 }}
+{{- end }}

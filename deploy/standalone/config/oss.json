@@ -1,0 +1,20 @@
+{
+  "oss": {
+    "access_key_id": "",
+    "access_key_secret": "",
+    "bucket": "",
+    "connect_timeout": 300,
+    "endpoint": "",
+    "object_prefix": "/",
+    "proxy": {
+      "check_interval": 60,
+      "fallback": true,
+      "ping_url": "",
+      "url": ""
+    },
+    "retry_limit": 3,
+    "scheme": "http",
+    "timeout": 300
+  },
+  "type": "oss"
+}

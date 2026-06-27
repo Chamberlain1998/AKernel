@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "akernel-sdk"
+version = "0.1.0"
+description = "Python SDK and CLI for AKernel remote sandboxes"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [
+    { name = "AKernel Authors" },
+]
+requires-python = ">=3.10"
+keywords = ["ai-agents", "sandbox", "gvisor", "remote-execution"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Distributed Computing",
+]
+dependencies = [
+    "openyuanrong-sdk==0.7.51",
+    "websockets>=10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.2,<2",
+    "mypy>=1.10,<2",
+    "ruff>=0.11,<1",
+]
+
+[project.scripts]
+ak = "akernel_sdk.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/akernel-dev/akernel"
+Documentation = "https://github.com/akernel-dev/akernel/tree/main/sdk/python"
+Repository = "https://github.com/akernel-dev/akernel.git"
+Issues = "https://github.com/akernel-dev/akernel/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["akernel_sdk*"]
+
+[tool.setuptools.package-data]
+akernel_sdk = ["py.typed"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+exclude = ["akernel_sdk/_instance.py"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+exclude = ["akernel_sdk/_instance.py"]
+
+[[tool.mypy.overrides]]
+module = ["yr", "yr.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "akernel_sdk._addresses",
+    "akernel_sdk.commands",
+    "akernel_sdk.filesystem",
+    "akernel_sdk.pty",
+    "akernel_sdk.sandbox",
+    "akernel_sdk.types",
+]
+disallow_untyped_defs = true

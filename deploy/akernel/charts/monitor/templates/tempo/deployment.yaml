@@ -1,0 +1,93 @@
+{{- if .Values.tempo.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempo
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: tempo
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.tempo.replicaCount }}
+  selector:
+    matchLabels:
+      component: tempo
+  template:
+    metadata:
+      labels:
+        {{- include "monitor.labels" . | nindent 8 }}
+        component: tempo
+        {{- with .Values.extraLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsUser: 0
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-prometheus
+        image: "{{ .Values.tempo.waitForPrometheusImage.repository }}:{{ .Values.tempo.waitForPrometheusImage.tag }}"
+        imagePullPolicy: {{ .Values.tempo.waitForPrometheusImage.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            until wget -qO- http://prometheus:9090/-/ready 2>/dev/null; do
+              echo "Waiting for Prometheus..."
+              sleep 5
+            done
+      containers:
+      - name: tempo
+        image: "{{ .Values.tempo.image.repository }}:{{ .Values.tempo.image.tag }}"
+        imagePullPolicy: {{ .Values.tempo.image.pullPolicy }}
+        args:
+          - -config.file=/etc/tempo/config.yaml
+        ports:
+        - containerPort: {{ .Values.tempo.service.ports.http }}
+          name: http
+        - containerPort: {{ .Values.tempo.service.ports.otlpGrpc }}
+          name: otlp-grpc
+        - containerPort: {{ .Values.tempo.service.ports.otlpHttp }}
+          name: otlp-http
+        volumeMounts:
+        - name: tempo-config
+          mountPath: /etc/tempo
+        - name: tempo-storage
+          mountPath: /var/tempo
+        resources:
+          {{- toYaml .Values.tempo.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.tempo.service.ports.http }}
+          initialDelaySeconds: 45
+          periodSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.tempo.service.ports.http }}
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: tempo-config
+        configMap:
+          name: tempo-config
+      - name: tempo-storage
+        persistentVolumeClaim:
+          claimName: tempo-pvc
+{{- end }}

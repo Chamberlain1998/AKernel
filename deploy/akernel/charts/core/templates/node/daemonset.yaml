@@ -1,0 +1,231 @@
+{{- if .Values.kruise.enabled }}
+apiVersion: apps.kruise.io/v1alpha1
+{{- else }}
+apiVersion: apps/v1
+{{- end }}
+kind: DaemonSet
+metadata:
+  name: akernel-node
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.node.labels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  annotations:
+    app: node
+    {{- with .Values.node.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  updateStrategy:
+    {{- if .Values.kruise.enabled }}
+    rollingUpdate:
+      rollingUpdateType: Standard
+      maxUnavailable: 200
+      partition: 0
+    {{- else }}
+    rollingUpdate:
+      maxUnavailable: 200
+    {{- end }}
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: node
+  template:
+    metadata:
+      labels:
+        app: node
+        {{- with .Values.node.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/node-config: {{ include (print $.Template.BasePath "/node/configmap.yaml") . | sha256sum }}
+        checksum/otel-collector-config: {{ include (print $.Template.BasePath "/otel-configmap.yaml") . | sha256sum }}
+        {{- with .Values.node.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "core.serviceAccountName" . }}
+      {{- with .Values.node.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.node.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $nodeEtcd := .Values.node.etcd | default dict }}
+      containers:
+      - name: akernel-node
+        image: "{{ include "core.image" (dict "root" . "image" .Values.node.image) }}"
+        imagePullPolicy: {{ include "core.image.pullPolicy" (dict "root" . "image" .Values.node.image) }}
+        command:
+        - /usr/local/bin/akernel-entrypoint
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - bash
+              - -c
+              - |
+                cp /etc/resolv.conf /etc/resolv_akernel.conf && sed -i 's/127.0.0.1/172.17.0.1/g' /etc/resolv_akernel.conf
+        resources:
+          {{- toYaml .Values.node.resources | nindent 10 }}
+        env:
+        - name: AKERNEL_ROLE
+          value: "node"
+        - name: RUNSC_AKERNEL
+          value: "1"
+        - name: ETCD_ADDRESS
+          value: {{ get $nodeEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
+        - name: ETCD_PORT
+          value: {{ get $nodeEtcd "port" | default "2379" | quote }}
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: INSTANCE_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        {{- if .Values.monitoring.prometheusEndpoint }}
+        - name: PROMETHEUS_ENDPOINT
+          value: {{ .Values.monitoring.prometheusEndpoint | quote }}
+        {{- end }}
+        {{- if .Values.monitoring.lokiEndpoint }}
+        - name: LOKI_ENDPOINT
+          value: {{ .Values.monitoring.lokiEndpoint | quote }}
+        {{- end }}
+        {{- if .Values.monitoring.tempoEndpoint }}
+        - name: TEMPO_ENDPOINT
+          value: {{ .Values.monitoring.tempoEndpoint | quote }}
+        {{- end }}
+        - name: AKERNEL_ENV
+          value: {{ .Values.monitoring.akernelEnv | default "default" | quote }}
+        - name: ENABLE_METRICS
+          value: {{ ne (.Values.monitoring.prometheusEndpoint | default "") "" | ternary "true" "false" | quote }}
+        - name: ENABLE_TRACE
+          value: {{ ne (.Values.monitoring.tempoEndpoint | default "") "" | ternary "true" "false" | quote }}
+        - name: TRAEFIK_MODE
+          value: {{ .Values.traefik.mode | default "http" | quote }}
+        - name: TRAEFIK_ENABLE_TLS
+          value: {{ .Values.traefik.enableWebEntrypoint | default false | ternary false (.Values.traefik.enableTLS | default false) | quote }}
+        - name: TRAEFIK_HTTP_ENTRYPOINT
+          value: {{ .Values.traefik.enableWebEntrypoint | default false | ternary "web" "websecure" | quote }}
+        securityContext:
+          privileged: true
+        volumeMounts:
+        # image-manager / resource-manager input configs live under
+        # /home/akernel/sandboxd/config/, disjoint from the image_manager runtime
+        # root that sandboxd wipes on pod change. Paths line up with the
+        # values.yaml [plugin.image] / [plugin.node_resource] sections.
+        - mountPath: /home/akernel/sandboxd/config/oss_auths.json
+          readOnly: true
+          name: akernel-secrets
+          subPath: oss_auths.json
+        - mountPath: /home/akernel/sandboxd/config/registry_auths.json
+          readOnly: true
+          name: akernel-secrets
+          subPath: registry_auths.json
+        - mountPath: /home/akernel/sandboxd/config/registry.json
+          readOnly: true
+          name: akernel-node-config
+          subPath: registry.json
+        - mountPath: /home/akernel/sandboxd/config/oss.json
+          readOnly: true
+          name: akernel-node-config
+          subPath: oss.json
+        - mountPath: /home/akernel/images/config.json
+          name: akernel-node-config
+          subPath: config.json
+        - mountPath: /dev/shm
+          name: shm
+        - mountPath: /etc/systemd/system/system.slice.d/service-resource-control.conf
+          name: akernel-node-config
+          subPath: service-resource-control.conf
+        - mountPath: /root/prepare_node.sh
+          readOnly: true
+          name: akernel-node-bootstrap
+          subPath: prepare_node.sh
+        # sandboxd reads its config at /home/akernel/sandboxd/config.toml; keep this
+        # mount and the unit file's `-config` flag in sync.
+        - mountPath: /home/akernel/sandboxd/config.toml
+          name: akernel-node-config
+          subPath: sandboxd_config.toml
+        - mountPath: /home/akernel
+          name: home-disk
+          {{- if not .Values.node.homeDisk.useEphemeralPVC }}
+          mountPropagation: HostToContainer
+          {{- end }}
+        {{- if or $.Values.monitoring.prometheusEndpoint $.Values.monitoring.lokiEndpoint $.Values.monitoring.tempoEndpoint }}
+        - mountPath: /etc/otel-collector
+          name: otel-collector-config
+          readOnly: true
+        {{- end }}
+      {{- if .Values.node.dnsConfig }}
+      dnsConfig:
+        {{- toYaml .Values.node.dnsConfig | nindent 8 }}
+      dnsPolicy: None
+      {{- else }}
+      dnsPolicy: ClusterFirst
+      {{- end }}
+      tolerations:
+      - operator: "Exists"
+      volumes:
+      - name: akernel-secrets
+        secret:
+          secretName: akernel-secrets
+          defaultMode: 0400
+      - name: akernel-node-config
+        configMap:
+          name: akernel-node-config
+      - name: akernel-node-bootstrap
+        configMap:
+          name: akernel-node-config
+          items:
+          - key: prepare_node.sh
+            path: prepare_node.sh
+            mode: 493
+      - name: home-disk
+      {{- if .Values.node.homeDisk.useEphemeralPVC }}
+        ephemeral:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                {{- toYaml .Values.node.homeDisk.accessModes | nindent 16 }}
+              resources:
+                requests:
+                  storage: {{ .Values.node.homeDisk.size | quote }}
+              {{- if .Values.node.homeDisk.storageClassName }}
+              storageClassName: {{ .Values.node.homeDisk.storageClassName | quote }}
+              {{- end }}
+      {{- else }}
+        hostPath:
+          path: {{ .Values.node.hostDiskPath }}
+          type: DirectoryOrCreate
+      {{- end }}
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 500Mi
+      {{- if or .Values.monitoring.prometheusEndpoint .Values.monitoring.lokiEndpoint .Values.monitoring.tempoEndpoint }}
+      - name: otel-collector-config
+        configMap:
+          name: akernel-otel-collector-config
+      {{- end }}

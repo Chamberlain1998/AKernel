@@ -1,0 +1,26 @@
+# Local standalone runtime state.
+.local/
+.akernel/
+deploy/standalone/data/
+deploy/standalone/logs/
+deploy/standalone/output/
+
+# Python caches.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+/sdk/python/build/
+/sdk/python/dist/
+
+# Local build artifacts.
+builder/*.img
+builder/*.tar
+builder/*.tar.gz
+
+# Editor and OS files.
+.DS_Store
+.idea/
+.vscode/

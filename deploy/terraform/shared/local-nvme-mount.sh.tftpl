@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Copyright (c) 2026 Ant Group Corporation.
+#
+# SPDX-License-Identifier: Apache-2.0
+# Generic local SSD auto-detect, format, and mount script.
+# Works with any Alibaba Cloud local-disk instance type (ecs.i2, ecs.i3, ecs.i4, ecs.d2, etc.).
+# - Detects local block devices: NVMe (/dev/nvme*n1) and virtio (/dev/vd*)
+# - Excludes system/cloud disks (root device, mounted devices, cloud_* disks)
+# - Single device: format ext4 directly
+# - Multiple devices: create LVM volume group for maximum space
+# - Idempotent: skips if already mounted
+set -euo pipefail
+
+MOUNT_PATH="${mount_path}"
+
+# Already mounted? Skip.
+if mountpoint -q "$MOUNT_PATH" 2>/dev/null; then
+  echo "[local-ssd] $MOUNT_PATH is already mounted, skipping."
+  exit 0
+fi
+
+# Find the root device to exclude it
+ROOT_SOURCE=$(findmnt -n -o SOURCE /)
+ROOT_DEV=""
+if [ -n "$ROOT_SOURCE" ]; then
+  ROOT_DEV=$(lsblk -ndo PKNAME "$ROOT_SOURCE" 2>/dev/null || true)
+fi
+
+# Collect all candidate local devices (NVMe + virtio)
+LOCAL_DEVS=()
+
+for dev in /dev/nvme*n1 /dev/vd[b-z]; do
+  [ -b "$dev" ] || continue
+  dev_name=$(basename "$dev")
+
+  # Skip if this is the root device
+  if [ -n "$ROOT_DEV" ] && [ "$dev_name" = "$ROOT_DEV" ]; then
+    echo "[local-ssd] Skipping $dev (root device)"
+    continue
+  fi
+
+  # Skip if any partition is mounted (system/cloud disk)
+  if lsblk -ln -o MOUNTPOINT "$dev" 2>/dev/null | grep -q '/'; then
+    echo "[local-ssd] Skipping $dev (has mounted partitions)"
+    continue
+  fi
+
+  # Skip if device already has a filesystem (cloud data disk, already formatted)
+  if blkid "$dev" &>/dev/null; then
+    echo "[local-ssd] Skipping $dev (already has filesystem)"
+    continue
+  fi
+
+  # Skip if device is already part of an LVM group
+  if pvs "$dev" &>/dev/null; then
+    echo "[local-ssd] Skipping $dev (already in LVM)"
+    continue
+  fi
+
+  LOCAL_DEVS+=("$dev")
+done
+
+if [ $${#LOCAL_DEVS[@]} -eq 0 ]; then
+  echo "[local-ssd] No local devices found, skipping."
+  exit 0
+fi
+
+echo "[local-ssd] Found $${#LOCAL_DEVS[@]} local device(s): $${LOCAL_DEVS[*]}"
+mkdir -p "$MOUNT_PATH"
+
+if [ $${#LOCAL_DEVS[@]} -eq 1 ]; then
+  # Single device — format and mount directly
+  DEV="$${LOCAL_DEVS[0]}"
+  echo "[local-ssd] Formatting $DEV with ext4..."
+  mkfs.ext4 -F "$DEV"
+  mount -o defaults,noatime "$DEV" "$MOUNT_PATH"
+  # Persist via fstab (use UUID for reliability)
+  UUID=$(blkid -s UUID -o value "$DEV")
+  echo "UUID=$UUID $MOUNT_PATH ext4 defaults,noatime 0 0" >> /etc/fstab
+else
+  # Multiple devices — use LVM to combine into one volume
+  echo "[local-ssd] Creating LVM volume from $${#LOCAL_DEVS[@]} devices..."
+
+  # Ensure LVM tools are available
+  if ! command -v pvcreate &>/dev/null; then
+    yum install -y lvm2 2>/dev/null || apt-get install -y lvm2 2>/dev/null || true
+  fi
+
+  VG_NAME="local_ssd_vg"
+  LV_NAME="local_ssd_lv"
+
+  pvcreate -f "$${LOCAL_DEVS[@]}"
+  vgcreate "$VG_NAME" "$${LOCAL_DEVS[@]}"
+  lvcreate -l 100%FREE -n "$LV_NAME" "$VG_NAME"
+  mkfs.ext4 -F "/dev/$VG_NAME/$LV_NAME"
+  mount -o defaults,noatime "/dev/$VG_NAME/$LV_NAME" "$MOUNT_PATH"
+  echo "/dev/$VG_NAME/$LV_NAME $MOUNT_PATH ext4 defaults,noatime 0 0" >> /etc/fstab
+fi
+
+echo "[local-ssd] Mounted at $MOUNT_PATH successfully."
+df -h "$MOUNT_PATH"

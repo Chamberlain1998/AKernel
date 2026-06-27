@@ -1,0 +1,19 @@
+{
+  "registry": {
+    "auth": "",
+    "blob_url_scheme": "http",
+    "connect_timeout": 300,
+    "host": "",
+    "proxy": {
+      "check_interval": 60,
+      "fallback": true,
+      "ping_url": "",
+      "url": ""
+    },
+    "repo": "",
+    "scheme": "https",
+    "skip_verify": true,
+    "timeout": 300
+  },
+  "type": "registry"
+}

@@ -1,0 +1,79 @@
+{{- if .Values.loki.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: loki
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.loki.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      component: loki
+  template:
+    metadata:
+      labels:
+        {{- include "monitor.labels" . | nindent 8 }}
+        component: loki
+        {{- with .Values.extraLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsUser: 0
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: loki
+        image: "{{ .Values.loki.image.repository }}:{{ .Values.loki.image.tag }}"
+        imagePullPolicy: {{ .Values.loki.image.pullPolicy }}
+        args:
+          - -config.file=/etc/loki/local-config.yaml
+        ports:
+        - containerPort: {{ .Values.loki.service.targetPort }}
+          name: http
+        volumeMounts:
+        - name: loki-config
+          mountPath: /etc/loki
+        - name: loki-storage
+          mountPath: /loki
+        resources:
+          {{- toYaml .Values.loki.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.loki.service.targetPort }}
+          initialDelaySeconds: 45
+          periodSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: {{ .Values.loki.service.targetPort }}
+          initialDelaySeconds: 15
+          periodSeconds: 5
+      volumes:
+      - name: loki-config
+        configMap:
+          name: loki-config
+      - name: loki-storage
+        persistentVolumeClaim:
+          claimName: loki-pvc
+{{- end }}

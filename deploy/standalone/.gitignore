@@ -1,0 +1,3 @@
+# AKernel standalone deployment data directory
+# This directory is used for container runtime data and is created automatically by start.sh
+data/

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.prometheusServer.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.prometheusServer.service.type }}
+  {{- if .Values.prometheusServer.service.isHeadless }}
+  clusterIP: None
+  {{- end }}
+  ports:
+  - port: {{ .Values.prometheusServer.service.port }}
+    targetPort: {{ .Values.prometheusServer.service.targetPort }}
+    protocol: {{ .Values.prometheusServer.service.protocol }}
+    name: web
+  selector:
+    component: prometheus

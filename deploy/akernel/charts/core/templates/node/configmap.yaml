@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: akernel-node-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: |
+{{ .Values.node.config.ociConfig | indent 4 }}
+
+  service-resource-control.conf: |
+    [Slice]
+    MemoryLimit={{ .Values.node.config.resourceControl.memoryLimit | default "8G" }}
+    CPUQuota={{ .Values.node.config.resourceControl.cpuQuota | default "800%" }}
+
+  sandboxd_config.toml: |
+{{ .Values.node.config.sandboxd.config | indent 4 }}
+
+  registry.json: |
+{{ .Values.node.config.registry | toPrettyJson | indent 4 }}
+
+  oss.json: |
+{{ .Values.node.config.oss | toPrettyJson | indent 4 }}
+
+  prepare_node.sh: |
+{{ .Files.Get "scripts/prepare_node.sh" | indent 4 }}

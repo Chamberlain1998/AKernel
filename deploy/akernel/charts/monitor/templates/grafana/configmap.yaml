@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: {{ .Values.grafanaServer.prometheus.name }}
+        type: prometheus
+        access: proxy
+        url: {{ .Values.grafanaServer.prometheus.url }}
+        isDefault: {{ .Values.grafanaServer.prometheus.isDefault }}
+        editable: true
+        uid: {{ .Values.grafanaServer.prometheus.uid }}
+        jsonData:
+          timeInterval: {{ .Values.grafanaServer.prometheus.timeInterval | quote }}
+          httpMethod: {{ .Values.grafanaServer.prometheus.httpMethod | quote }}
+          exemplarTraceIdDestinations:
+            - name: traceID
+              datasourceUid: {{ .Values.grafanaServer.prometheus.exemplarTraceIdDatasourceUid }}
+  {{- if .Values.grafanaServer.loki.enabled }}
+  loki.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: {{ .Values.grafanaServer.loki.name }}
+        type: loki
+        access: proxy
+        url: {{ .Values.grafanaServer.loki.url }}
+        editable: true
+        uid: {{ .Values.grafanaServer.loki.uid }}
+        jsonData:
+          maxLines: {{ .Values.grafanaServer.loki.maxLines }}
+          derivedFields:
+            - name: {{ .Values.grafanaServer.loki.derivedField.name }}
+              matcherRegex: {{ .Values.grafanaServer.loki.derivedField.matcherRegex | quote }}
+              url: {{ .Values.grafanaServer.loki.derivedField.url | quote }}
+              datasourceUid: {{ .Values.grafanaServer.loki.derivedField.datasourceUid }}
+              matcherType: {{ .Values.grafanaServer.loki.derivedField.matcherType }}
+  {{- end }}
+  {{- if .Values.grafanaServer.tempo.enabled }}
+  tempo.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: {{ .Values.grafanaServer.tempo.name }}
+        type: tempo
+        access: proxy
+        url: {{ .Values.grafanaServer.tempo.url }}
+        editable: true
+        uid: {{ .Values.grafanaServer.tempo.uid }}
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: {{ .Values.grafanaServer.tempo.tracesToLogs.datasourceUid }}
+            spanStartTimeShift: {{ .Values.grafanaServer.tempo.tracesToLogs.spanStartTimeShift | quote }}
+            spanEndTimeShift: {{ .Values.grafanaServer.tempo.tracesToLogs.spanEndTimeShift | quote }}
+            filterByTraceID: {{ .Values.grafanaServer.tempo.tracesToLogs.filterByTraceID }}
+            filterBySpanID: {{ .Values.grafanaServer.tempo.tracesToLogs.filterBySpanID }}
+          tracesToMetrics:
+            datasourceUid: {{ .Values.grafanaServer.tempo.tracesToMetrics.datasourceUid }}
+            spanStartTimeShift: {{ .Values.grafanaServer.tempo.tracesToMetrics.spanStartTimeShift | quote }}
+            spanEndTimeShift: {{ .Values.grafanaServer.tempo.tracesToMetrics.spanEndTimeShift | quote }}
+          serviceMap:
+            datasourceUid: {{ .Values.grafanaServer.tempo.serviceMap.datasourceUid }}
+          nodeGraph:
+            enabled: {{ .Values.grafanaServer.tempo.nodeGraph.enabled }}
+          lokiSearch:
+            datasourceUid: {{ .Values.grafanaServer.tempo.lokiSearch.datasourceUid }}
+  {{- end }}

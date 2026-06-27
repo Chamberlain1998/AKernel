@@ -1,0 +1,42 @@
+# Git metadata is not part of the image build. Component versions come from
+# their source manifests, and exact revisions remain traceable through the
+# parent repository's submodule gitlinks.
+.git
+**/.git
+
+# Local deployment profiles contain Terraform state, kubeconfigs, IAM seeds,
+# and generated JWT tokens.
+.akernel/
+.local/
+**/.terraform/
+**/.terraform.lock.hcl
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/terraform.tfvars
+
+# Standalone runtime state.
+deploy/standalone/data/
+deploy/standalone/logs/
+deploy/standalone/output/
+
+# Local component build outputs. The image build compiles these components in
+# dedicated Docker stages.
+src/distill-fs/target/
+src/sandboxd/output/
+
+# Python caches and package outputs.
+**/__pycache__/
+**/.pytest_cache/
+**/*.py[cod]
+**/*.egg-info/
+
+# Local image and archive outputs.
+builder/*.img
+builder/*.tar
+builder/*.tar.gz
+
+# Editor and operating-system metadata.
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,21 @@
+{{- if and .Values.loki.enabled .Values.loki.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: loki
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    - {{ .Values.loki.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.loki.persistence.size | quote }}
+  storageClassName: {{ .Values.loki.persistence.storageClass | quote }}
+  volumeMode: Filesystem
+{{- end }}

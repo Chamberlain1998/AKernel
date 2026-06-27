@@ -1,0 +1,193 @@
+# Huawei Cloud credentials are recommended via environment variables:
+# export HW_ACCESS_KEY="<your-ak>"
+# export HW_SECRET_KEY="<your-sk>"
+# export HW_REGION_NAME="cn-north-4"
+# Optional:
+# export HW_PROJECT_ID="<project-id>"
+
+region = "cn-north-4"
+
+cluster_name = "akernel-cce"
+
+# Enable public API endpoint by binding an EIP to CCE API server.
+cluster_api_public_access = true
+# cluster_api_eip_type                   = "5_bgp"
+# cluster_api_eip_bandwidth_size         = 5
+# cluster_api_eip_bandwidth_share_type   = "PER"
+# cluster_api_eip_bandwidth_charge_mode  = "traffic"
+
+# Enable node subnet outbound internet access (for pulling external images) via NAT SNAT.
+node_subnet_enable_snat = true
+# node_subnet_nat_spec                    = "1"
+# node_subnet_eip_type                    = "5_bgp"
+# node_subnet_eip_bandwidth_size          = 20
+# node_subnet_eip_bandwidth_share_type    = "PER"
+# node_subnet_eip_bandwidth_charge_mode   = "traffic"
+
+# Optional: set specific AZ, otherwise first AZ is selected automatically.
+availability_zone = "cn-north-4a"
+
+# If cluster_flavor_id is empty, the first available flavor for cluster_type is used.
+# cluster_flavor_id = "cce.s2.small"
+
+# Option 1: set explicit node flavor ID (recommended for deterministic builds)
+# node_flavor_id = "s7n.xlarge.2"
+
+# Option 2: auto-pick by CPU/memory filters
+node_flavor_cpu    = 4
+node_flavor_memory = 8
+
+node_pool_size     = 3
+node_pool_min_size = 1
+node_pool_max_size = 5
+
+# Some non-local-disk node flavors require an extra data volume.
+node_pool_data_volume_enabled = true
+node_pool_data_volume_type    = "SSD"
+node_pool_data_volume_size    = 100
+
+# Node OS image name for CCE node pool.
+node_pool_os = "Huawei Cloud EulerOS 2.0"
+
+# Set one of the following for node login.
+
+# --- Node /home/akernel storage mode (choose one) ---
+# Default: hostPath from system disk (/home/akernel). No extra config needed.
+#
+# Option A: Extra data volume — dedicated cloud disk per node, mounted to /home/akernel via postinstall.
+#   No PVC scheduling delay, scales with nodes.
+# node_pool_extra_data_volume_enabled    = true
+# node_pool_extra_data_volume_type       = "SSD"
+# node_pool_extra_data_volume_size       = 300
+# node_pool_extra_data_volume_mount_path = "/home/akernel"
+# node_pool_extra_data_volume_fs_type    = "ext4"   # ext4 or xfs
+#
+# Option B: CSI ephemeral PVC — dynamic cloud disk per pod.
+# node_home_use_csi_ephemeral = true
+# node_home_csi_storage_class = "csi-disk"
+# node_home_csi_size          = "300Gi"
+
+# Set one of the following for node login.
+node_pool_key_pair       = ""
+node_pool_login_password = "<strong-password>"
+
+# StorageClass available in your CCE cluster for monitor PVCs.
+monitor_storage_class = "csi-disk"
+
+# --- Component images ---
+# Override image repository/tag for each component.
+# etcd_image_repository    = "public.ecr.aws/bitnami/etcd"
+# etcd_image_tag           = "3.6.8"
+master_image_repository   = "swr.cn-north-4.myhuaweicloud.com/akernel/all-in-one"
+master_image_tag          = "<release-tag>"
+node_image_repository     = "swr.cn-north-4.myhuaweicloud.com/akernel/all-in-one"
+node_image_tag            = "<release-tag>"
+# traefik_image_repository = "traefik"
+# traefik_image_tag        = "v3.6.8"
+
+# Generate a unique seed for each deployment. Guided `make config` writes this
+# automatically; direct Terraform users can use `openssl rand -hex 32`.
+# iam_litebus_data_key = "<64-character-hex-seed>"
+
+# Enable the /internal-stats endpoint sidecar on Traefik.
+# traefik_internal_stats_enabled = true
+# traefik_internal_stats_image   = "my-registry.example.com/busybox:1.37.0-musl"
+
+# Optional mirror registry for Grafana, Prometheus, Loki, Tempo, and BusyBox.
+# Leave empty to use the projects' official public images.
+# monitor_image_registry   = "swr.cn-north-4.myhuaweicloud.com/akernel"
+
+# Override global image registry for all Dragonfly components.
+# dragonfly_image_registry = "swr.cn-north-4.myhuaweicloud.com/akernel"
+# The official chart repository and version are pinned by default.
+# dragonfly_chart_repository = "https://dragonflyoss.github.io/helm-charts/"
+# dragonfly_chart_version    = "1.6.21"
+# Override image tag per component (empty means chart default):
+# dragonfly_manager_image_tag      = "v2.4.3"
+# dragonfly_scheduler_image_tag    = "v2.4.3"
+# dragonfly_seed_client_image_tag  = "v1.3.0"
+# dragonfly_client_image_tag       = "v1.3.0"
+# dragonfly_injector_image_tag     = "v0.1.0"
+# dragonfly_dfinit_image_tag       = "v1.3.0"
+
+# Enable Dragonfly to create the dedicated seed and server node pools below.
+# install_dragonfly   = true
+# dragonfly_namespace = "dragonfly-system"
+
+# Seed node pool: storage-intensive, autoscaling, runs seed-client.
+# dragonfly_seed_node_pool = {
+#   name           = "dragonfly-seed"
+#   size           = 3
+#   min_size       = 1
+#   max_size       = 10
+#   data_disk_size = 500
+#   # For local-disk instances, disable cloud data disk and auto-mount local SSDs:
+#   # data_disk_enabled     = false
+#   # mount_local_nvme      = true
+#   # local_nvme_mount_path = "/mnt/dragonfly-seed"
+# }
+
+# Server node pool: fixed size, runs manager + scheduler + mysql + redis.
+# dragonfly_server_node_pool = {
+#   name           = "dragonfly-server"
+#   size           = 1
+#   data_disk_size = 200
+# }
+
+# Override Dragonfly component resource specs.
+# dragonfly_manager_resources     = { replicas = 1, cpu_request = "500m", memory_request = "512Mi", cpu_limit = "2", memory_limit = "4Gi" }
+# dragonfly_scheduler_resources   = { replicas = 1, cpu_request = "500m", memory_request = "512Mi", cpu_limit = "2", memory_limit = "4Gi" }
+# dragonfly_seed_client_resources = { cpu_request = "500m", memory_request = "512Mi", cpu_limit = "2", memory_limit = "4Gi" }
+
+# Optional: expose akernel-master port 8888 through public LoadBalancer.
+# Set true to enable public access.
+# master_public_access_8888 = true
+# Optional: or specify the Service EIP as loadBalancerIP.
+# master_service_loadbalancer_ip = "1.2.3.4"
+# Optional: extra service annotations.
+# master_service_annotations = {}
+
+# Optional: master replicas (for HA when frontend is enabled).
+# master_replicas = 1
+
+# Optional: enable frontend Deployment (splits from master for independent scaling).
+# When enabled, Traefik routes API traffic to akernel-frontend instead of akernel-master.
+# frontend_enabled = false
+# frontend_replicas = 2
+# frontend_cpu      = "4"
+# frontend_memory   = "8Gi"
+
+# Optional: traefik replicas.
+# traefik_replicas = 1
+
+# Restrict SSH CIDRs in production.
+allowed_ssh_cidrs = ["0.0.0.0/0"]
+
+# Install prerequisite components (OpenKruise) before AKernel charts.
+install_prereqs            = false
+prereq_namespace           = "kruise-system"
+prereq_kruise_repo         = "https://openkruise.github.io/charts/"
+prereq_kruise_chart        = "kruise"
+prereq_kruise_chart_version = "1.8.3"
+
+# --- Optional: OSS ---
+# oss_endpoint          = "https://obs.cn-north-4.myhuaweicloud.com"
+# oss_access_key_id     = "<ak>"
+# oss_access_key_secret = "<sk>"
+# oss_bucket            = "<bucket-name>"
+
+# Optional: additional OSS auth entries (merged with auto-generated entry from oss_endpoint/oss_bucket).
+# oss_auths = {
+#   "obs.cn-north-4.myhuaweicloud.com/another-bucket" = {
+#     access_key_id     = "<ak>"
+#     access_key_secret = "<sk>"
+#   }
+# }
+
+# Optional: container registry auth credentials for node image pulling.
+# registry_auths = {
+#   "swr.cn-north-4.myhuaweicloud.com" = {
+#     username = "<username>"
+#     password = "<password>"
+#   }
+# }

@@ -1,0 +1,263 @@
+# Alibaba Cloud credentials are recommended via environment variables:
+# export ALICLOUD_ACCESS_KEY="<your-access-key-id>"
+# export ALICLOUD_SECRET_KEY="<your-access-key-secret>"
+# export ALICLOUD_REGION="cn-hangzhou"
+
+region = "cn-hangzhou"
+
+cluster_name = "akernel-ack"
+
+# Required when create_cluster=true:
+# - zone_ids length must match vswitch_cidrs length
+# - at least 3 zones/cidrs are required by this module (zones can repeat)
+zone_ids = ["cn-hangzhou-j", "cn-hangzhou-j", "cn-hangzhou-j"]
+
+# VPC/VSwitch CIDRs for ACK cluster.
+vpc_cidr      = "192.168.0.0/16"
+vswitch_cidrs = ["192.168.0.0/20", "192.168.16.0/20", "192.168.32.0/20"]
+
+# Optional: reuse existing VPC/vSwitches (bypasses DescribeVSwitchAttributes — no VPC read permission needed).
+# vpc_id               = "vpc-xxxx"
+# existing_vswitch_ids = ["vsw-xxxx", "vsw-xxxx", "vsw-xxxx"]
+
+# Optional: use existing security groups instead of ACK auto-created ones.
+# security_group_id           = "sg-xxxx"   # For ACK cluster
+# node_pool_security_group_ids = ["sg-xxxx"]  # For node pool ECS instances
+
+# ACK cluster and API access.
+create_cluster                   = true
+api_server_public_access         = true
+auto_authorize_oos_lifecycle_role = true
+# Optional: where to write generated kubeconfig when create_cluster=true.
+# The repository Makefile sets this to .akernel/<env>/kubeconfig.
+# kubeconfig_output_path = "/abs/path/to/generated/kubeconfig"
+
+# Kubernetes and network ranges.
+# NOTE: ACK 1.35+ drops cgroup v1 support. Use 1.34 or earlier if sandboxd needs cgroup v1.
+k8s_version   = "1.34.3-aliyun.1"
+network_addon = "terway-eniip"
+service_cidr  = "10.20.0.0/20"
+# Optional: override pod vSwitches for terway-eni/terway-eniip (defaults to worker vSwitches).
+# pod_vswitch_ids      = ["vsw-xxxx", "vsw-yyyy", "vsw-zzzz"]
+# Enable exclusive ENI mode (each Pod gets a dedicated ENI, requires ENI count > 6).
+node_pool_exclusive_eni = true
+
+# Node pool defaults. Supports multiple instance types for fallback when primary
+# type has insufficient inventory, e.g.:
+#   node_pool_instance_types = ["ecs.r9i.4xlarge", "ecs.r5.8xlarge", "ecs.se1ne.8xlarge"]
+node_pool_instance_types       = ["ecs.c7.3xlarge"]
+node_pool_image_type           = "AliyunLinux3"
+# Optional: pin ACK node image to a specific official/custom image ID.
+# node_pool_image_id           = "aliyun_3_x64_20G_alibase_20230110.vhd"
+# Optional: pin node pool to one zone in zone_ids.
+# node_pool_zone_id            = "cn-hangzhou-i"
+node_pool_size                 = 3
+node_pool_system_disk_category = "cloud_essd"
+node_pool_system_disk_size     = 100
+node_pool_data_disk_enabled    = true
+node_pool_data_disk_category   = "cloud_essd"
+node_pool_data_disk_size       = 100
+
+# Set one of the following for node login.
+node_pool_key_name = "<your-ecs-key-name>"
+# node_pool_login_password = "<your-strong-password>"
+
+# --- Node /home/akernel storage mode (choose one) ---
+# Default: hostPath from system disk (/home/akernel). No extra config needed.
+#
+# Option A: Extra data disk — dedicated cloud disk per node, mounted to /home/akernel via user_data.
+#   No PVC scheduling delay, scales with nodes.
+# node_pool_extra_data_disk_enabled    = true
+# node_pool_extra_data_disk_category   = "cloud_essd"
+# node_pool_extra_data_disk_size       = 300
+# node_pool_extra_data_disk_mount_path = "/home/akernel"
+# node_pool_extra_data_disk_fs_type    = "ext4"   # ext4 or xfs
+#
+# Option B: CSI ephemeral PVC — dynamic cloud disk per pod.
+# node_home_use_csi_ephemeral = true
+# node_home_csi_storage_class = "alicloud-disk-essd"
+# node_home_csi_size          = "300Gi"
+
+# Optional: tag all Terraform-managed resources for identification and protection.
+# tags = { "managed-by" = "terraform", "project" = "akernel" }
+
+# --- Core chart settings ---
+core_namespace = "akernel"
+
+# Optional: stable IAM JWT signing seed. Generate a 32-byte hex value with:
+#   python3 -c 'import secrets; print(secrets.token_hex(32).upper())'
+# iam_litebus_data_key = "<64-char-hex-seed>"
+
+# --- Component images ---
+# Override image repository/tag for each component. Defaults to <acr_registry>/<component>.
+# etcd_image_repository    = "my-registry.com/etcd"
+# etcd_image_tag           = "3.6.8"
+# master_image_repository  = "my-registry.com/akernel/all-in-one"
+# master_image_tag         = "<release-tag>"
+# node_image_repository    = "my-registry.com/akernel/all-in-one"
+# node_image_tag           = "<release-tag>"
+# traefik_image_repository = "my-registry.com/traefik"
+# traefik_image_tag        = "v3.6.8"
+
+# Optional mirror registry for Grafana, Prometheus, Loki, Tempo, and BusyBox.
+# Leave empty to use the projects' official public images.
+# monitor_image_registry   = "my-registry.com/akernel"
+
+# Override global image registry for all Dragonfly components.
+# dragonfly_image_registry = "my-registry.com/akernel"
+# The official chart repository and version are pinned by default.
+# dragonfly_chart_repository = "https://dragonflyoss.github.io/helm-charts/"
+# dragonfly_chart_version    = "1.6.21"
+# Override image tag per component (empty means chart default):
+# dragonfly_manager_image_tag      = "v2.4.3"
+# dragonfly_scheduler_image_tag    = "v2.4.3"
+# dragonfly_seed_client_image_tag  = "v1.3.0"
+# dragonfly_client_image_tag       = "v1.3.0"
+# dragonfly_injector_image_tag     = "v0.1.0"
+# dragonfly_dfinit_image_tag       = "v1.3.0"
+
+# Override Dragonfly component resource specs.
+# dragonfly_manager_resources     = { replicas = 1, cpu_request = "500m", memory_request = "512Mi", cpu_limit = "2", memory_limit = "4Gi" }
+# dragonfly_scheduler_resources   = { replicas = 1, cpu_request = "500m", memory_request = "512Mi", cpu_limit = "2", memory_limit = "4Gi" }
+# dragonfly_seed_client_resources = { cpu_request = "500m", memory_request = "512Mi", cpu_limit = "2", memory_limit = "4Gi" }
+
+# --- Component resource specs ---
+# Override CPU/memory/ephemeral-storage/PVC size per component. Only set fields you want to change.
+# etcd_resources             = { cpu = "2", memory = "4Gi", pvc_size = "100Gi" }
+# master_resources           = { cpu = "2", memory = "4Gi" }
+# node_resources             = { ephemeral_storage = "2Gi" }
+# grafana_resources          = { cpu = "500m", memory = "1Gi", pvc_size = "50Gi" }
+# prometheus_resources       = { cpu = "2", memory = "4Gi", pvc_size = "50Gi" }
+# loki_resources             = { cpu = "1", memory = "2Gi", pvc_size = "50Gi" }
+# tempo_resources            = { cpu = "1", memory = "2Gi", pvc_size = "20Gi" }
+
+# Optional: expose akernel-master port 8888 through LoadBalancer.
+# master_public_access_8888 = true
+# master_service_type       = "LoadBalancer"
+
+# Optional: master replicas (for HA when frontend is enabled).
+# master_replicas = 1
+
+# Frontend Deployment. Traefik routes API traffic to akernel-frontend when it is enabled.
+frontend_enabled  = true
+frontend_replicas = 1
+frontend_cpu      = "1"
+frontend_memory   = "2Gi"
+
+# Traefik ingress controller (deployed via core chart).
+traefik_enabled               = true
+install_traefik               = true
+traefik_service_type          = "LoadBalancer"
+traefik_enable_web_entrypoint = true
+traefik_websecure_port        = 443
+traefik_web_port              = 80
+# traefik_replicas = 1
+# Optional: mount a custom default certificate. The websecure router still
+# serves TLS when this is false, using Traefik's default certificate.
+traefik_tls_enabled       = false
+traefik_tls_create_secret = false
+# traefik_tls_cert        = "<PEM certificate>"
+# traefik_tls_key         = "<PEM private key>"
+# traefik_internal_stats_enabled = true
+# traefik_internal_stats_image   = "registry-vpc.cn-hangzhou.aliyuncs.com/my-namespace/busybox:1.37.0-musl"
+
+# Install prerequisite components (OpenKruise) before AKernel charts.
+install_prereqs             = false
+prereq_namespace            = "kruise-system"
+prereq_kruise_repo          = "https://openkruise.github.io/charts/"
+prereq_kruise_chart         = "kruise"
+prereq_kruise_chart_version = "1.8.3"
+
+# Node secret control.
+node_secret_create = true
+
+# --- Monitor ---
+install_monitor        = true
+monitor_namespace      = "akernel-monitor"
+monitor_storage_class  = "alicloud-disk-essd"
+grafana_public_access  = true
+grafana_admin_password = "<your-grafana-password>"
+
+# --- Optional Dragonfly P2P image distribution ---
+# Enabling Dragonfly also creates the dedicated seed and server node pools
+# below. Keep it disabled when those additional resources are not required.
+install_dragonfly   = false
+dragonfly_namespace = "dragonfly-system"
+
+# Seed node pool: runs seed-client with PVC-based storage (CSI cloud disk).
+dragonfly_seed_node_pool = {
+  name                 = "dragonfly-seed"
+  size                 = 3
+  instance_types       = ["ecs.c7.2xlarge"]
+  data_disk_size       = 500
+  # Autoscaling requires AliyunCSManagedAutoScalerRole in the account.
+  # auto_scaling_enabled = true
+  # min_size             = 1
+  # max_size             = 10
+  # ESSD performance level: PL0, PL1, PL2, PL3 (PL3 requires min 1261 GiB)
+  # data_disk_performance_level = "PL1"
+  # For local-disk instances (e.g. ecs.i2, ecs.i3, ecs.d2), disable cloud data disk
+  # and auto-mount local SSDs (NVMe + virtio):
+  # data_disk_enabled     = false
+  # mount_local_nvme      = true
+  # local_nvme_mount_path = "/mnt/dragonfly-seed"
+}
+
+# seedClient PVC size (default 500Gi). Uses global storage_class unless overridden.
+# dragonfly_seed_client_pvc_size = "500Gi"
+# Optional: dedicated StorageClass with specific ESSD performance level for seedClient.
+# create_dragonfly_storage_class = true
+# dragonfly_storage_class        = "alicloud-disk-essd-pl3-wffc"
+# dragonfly_storage_class_pl     = "PL3"
+
+# Server node pool: fixed size, runs manager + scheduler + mysql + redis.
+dragonfly_server_node_pool = {
+  name           = "dragonfly-server"
+  size           = 1
+  instance_types = ["ecs.c7.xlarge"]
+  data_disk_size = 200
+}
+
+# Optional: additional custom node pools.
+# extra_node_pools = [
+#   {
+#     name           = "gpu-pool"
+#     size           = 2
+#     instance_types = ["ecs.gn6v-c8g1.2xlarge"]
+#     data_disk_size = 500
+#     labels         = { "node-role" = "gpu" }
+#     taints = [{
+#       key    = "dedicated"
+#       value  = "gpu"
+#       effect = "NoSchedule"
+#     }]
+#   },
+# ]
+
+# Optional OSS settings for akernel node secret.
+# oss_endpoint          = "oss-cn-hangzhou.aliyuncs.com"
+# oss_access_key_id     = "<oss-access-key-id>"
+# oss_access_key_secret = "<oss-access-key-secret>"
+# oss_bucket            = "<bucket-name>"
+# oss_object_prefix     = "/"
+# oss_proxy_url         = ""
+
+# Optional: additional OSS auth entries (merged with auto-generated entry from oss_endpoint/oss_bucket).
+# oss_auths = {
+#   "oss-cn-hangzhou.aliyuncs.com/another-bucket" = {
+#     access_key_id     = "<ak>"
+#     access_key_secret = "<sk>"
+#   }
+# }
+
+# Optional: container registry auth credentials for node image pulling.
+# registry_auths = {
+#   "registry.example.com" = {
+#     username = "<username>"
+#     password = "<password>"
+#   }
+# }
+
+# Example for using existing cluster instead of creating ACK:
+# create_cluster  = false
+# kubeconfig_path = "/abs/path/to/kubeconfig"

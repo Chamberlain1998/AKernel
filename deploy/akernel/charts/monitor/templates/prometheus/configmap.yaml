@@ -1,0 +1,420 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: prometheus
+    {{- include "monitor.labels" . | nindent 4 }}
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: {{ .Values.prometheusServer.config.clusterName | quote }}
+        environment: {{ .Values.prometheusServer.config.environment | quote }}
+
+    scrape_configs:
+      # Prometheus self-monitoring endpoint
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+            labels:
+              instance: 'prometheus'
+
+      # Pushgateway for application metrics via file_sd_configs
+      - job_name: 'pushgateway-dynamic'
+        honor_labels: true
+        file_sd_configs:
+          - files:
+            - /etc/prometheus/pushgateways.json
+
+{{- $controlPlanePods := .Values.prometheusServer.config.controlPlanePods | default dict }}
+{{- if $controlPlanePods.enabled }}
+{{- $kubelet := $controlPlanePods.kubelet | default dict }}
+{{- $resourceMetrics := $controlPlanePods.resourceMetrics | default dict }}
+{{- $diskMetrics := $controlPlanePods.diskMetrics | default dict }}
+{{- if $resourceMetrics.enabled }}
+      # AKernel control-plane pod CPU and memory from kubelet resource metrics.
+      - job_name: 'kubelet-resource-control-plane-pods'
+        scheme: {{ $kubelet.scheme | default "https" }}
+        metrics_path: /metrics/resource
+        scrape_interval: {{ $resourceMetrics.scrapeInterval | default "30s" }}
+        scrape_timeout: {{ $resourceMetrics.scrapeTimeout | default "10s" }}
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+{{- if hasKey $kubelet "insecureSkipVerify" }}
+          insecure_skip_verify: {{ $kubelet.insecureSkipVerify }}
+{{- else }}
+          insecure_skip_verify: true
+{{- end }}
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names: {{ $controlPlanePods.namespaces | default (list "akernel") | toJson }}
+{{- with $controlPlanePods.labelSelector }}
+          selectors:
+            - role: pod
+              label: {{ . | quote }}
+{{- end }}
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_phase]
+          action: keep
+          regex: Running
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: {{ $controlPlanePods.targetContainerRegex | default "akernel-master|akernel-frontend|etcd|traefik|manager|scheduler|seed-client|mysql|redis" | quote }}
+        - source_labels: [__meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_container_port_number]
+          action: keep
+          regex: {{ printf "(%s);.*|;(%s)" ($controlPlanePods.targetPortNameRegex | default "http|client|dashboard|mysql|redis") ($controlPlanePods.targetPortNumberRegex | default "8000|4002|3306|6379") | quote }}
+        - source_labels: [__meta_kubernetes_pod_host_ip]
+          action: replace
+          target_label: __address__
+          regex: (.+)
+          replacement: ${1}:{{ $kubelet.port | default 10250 }}
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: scrape_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: scrape_pod
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          action: replace
+          target_label: node
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          action: replace
+          target_label: app
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          regex: (mysql|redis)
+          action: replace
+          target_label: app
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: akernel-master
+          action: replace
+          target_label: component
+          replacement: master
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: akernel-frontend
+          action: replace
+          target_label: component
+          replacement: frontend
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: (etcd|traefik)
+          action: replace
+          target_label: component
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_label_component]
+          regex: dragonfly;(manager|scheduler|seed-client)
+          action: replace
+          target_label: component
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: mysql;primary
+          action: replace
+          target_label: component
+          replacement: mysql
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: redis;(master|replica)
+          action: replace
+          target_label: component
+          replacement: redis
+
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          action: keep
+          regex: pod_cpu_usage_seconds_total|pod_memory_working_set_bytes
+        - source_labels: [namespace]
+          target_label: scrape_namespace
+          action: keepequal
+        - source_labels: [pod]
+          target_label: scrape_pod
+          action: keepequal
+        - action: labeldrop
+          regex: scrape_(namespace|pod)
+
+{{- end }}
+{{- if $diskMetrics.enabled }}
+      # AKernel control-plane pod limits and disk usage from kubelet cAdvisor metrics.
+      - job_name: 'kubelet-cadvisor-control-plane-pods'
+        scheme: {{ $kubelet.scheme | default "https" }}
+        metrics_path: /metrics/cadvisor
+        scrape_interval: {{ $diskMetrics.scrapeInterval | default "120s" }}
+        scrape_timeout: {{ $diskMetrics.scrapeTimeout | default "10s" }}
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+{{- if hasKey $kubelet "insecureSkipVerify" }}
+          insecure_skip_verify: {{ $kubelet.insecureSkipVerify }}
+{{- else }}
+          insecure_skip_verify: true
+{{- end }}
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names: {{ $controlPlanePods.namespaces | default (list "akernel") | toJson }}
+{{- with $controlPlanePods.labelSelector }}
+          selectors:
+            - role: pod
+              label: {{ . | quote }}
+{{- end }}
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_phase]
+          action: keep
+          regex: Running
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: {{ $controlPlanePods.targetContainerRegex | default "akernel-master|akernel-frontend|etcd|traefik|manager|scheduler|seed-client|mysql|redis" | quote }}
+        - source_labels: [__meta_kubernetes_pod_container_port_name, __meta_kubernetes_pod_container_port_number]
+          action: keep
+          regex: {{ printf "(%s);.*|;(%s)" ($controlPlanePods.targetPortNameRegex | default "http|client|dashboard|mysql|redis") ($controlPlanePods.targetPortNumberRegex | default "8000|4002|3306|6379") | quote }}
+        - source_labels: [__meta_kubernetes_pod_host_ip]
+          action: replace
+          target_label: __address__
+          regex: (.+)
+          replacement: ${1}:{{ $kubelet.port | default 10250 }}
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: scrape_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: scrape_pod
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          action: replace
+          target_label: node
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          action: replace
+          target_label: app
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          regex: (mysql|redis)
+          action: replace
+          target_label: app
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: akernel-master
+          action: replace
+          target_label: component
+          replacement: master
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: akernel-frontend
+          action: replace
+          target_label: component
+          replacement: frontend
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          regex: (etcd|traefik)
+          action: replace
+          target_label: component
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_label_component]
+          regex: dragonfly;(manager|scheduler|seed-client)
+          action: replace
+          target_label: component
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: mysql;primary
+          action: replace
+          target_label: component
+          replacement: mysql
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_label_app_kubernetes_io_component]
+          regex: redis;(master|replica)
+          action: replace
+          target_label: component
+          replacement: redis
+
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          action: keep
+          regex: container_spec_cpu_period|container_spec_cpu_quota|container_spec_memory_limit_bytes|container_fs_usage_bytes|container_fs_limit_bytes
+        - source_labels: [container]
+          action: drop
+          regex: ^$|POD
+        - source_labels: [namespace]
+          target_label: scrape_namespace
+          action: keepequal
+        - source_labels: [pod]
+          target_label: scrape_pod
+          action: keepequal
+        - action: labeldrop
+          regex: scrape_(namespace|pod)
+
+{{- end }}
+{{- end }}
+
+{{- $persistentVolumeClaims := .Values.prometheusServer.config.persistentVolumeClaims | default dict }}
+{{- if $persistentVolumeClaims.enabled }}
+{{- $pvcKubelet := $persistentVolumeClaims.kubelet | default dict }}
+      # Kubernetes PVC usage from kubelet volume stats.
+      - job_name: 'kubelet-volume-stats'
+        scheme: {{ $pvcKubelet.scheme | default "https" }}
+        metrics_path: /metrics
+        scrape_interval: {{ $persistentVolumeClaims.scrapeInterval | default "60s" }}
+        scrape_timeout: {{ $persistentVolumeClaims.scrapeTimeout | default "10s" }}
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+{{- if hasKey $pvcKubelet "insecureSkipVerify" }}
+          insecure_skip_verify: {{ $pvcKubelet.insecureSkipVerify }}
+{{- else }}
+          insecure_skip_verify: true
+{{- end }}
+        kubernetes_sd_configs:
+        - role: node
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_node_name]
+          action: replace
+          target_label: node
+        - source_labels: [__address__]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?
+          replacement: ${1}:{{ $pvcKubelet.port | default 10250 }}
+
+        metric_relabel_configs:
+        - source_labels: [__name__]
+          action: keep
+          regex: kubelet_volume_stats_(used_bytes|capacity_bytes|available_bytes|inodes|inodes_used|inodes_free)
+        - source_labels: [namespace]
+          action: keep
+          regex: {{ $persistentVolumeClaims.namespaces | default (list "akernel-monitor") | join "|" | quote }}
+
+{{- end }}
+
+{{- $dragonflyMetrics := .Values.prometheusServer.config.dragonflyMetrics | default dict }}
+{{- if $dragonflyMetrics.enabled }}
+      # Dragonfly manager, scheduler, seed-client, and client metrics services.
+      - job_name: 'dragonfly-metrics'
+        metrics_path: /metrics
+        scrape_interval: {{ $dragonflyMetrics.scrapeInterval | default "30s" }}
+        scrape_timeout: {{ $dragonflyMetrics.scrapeTimeout | default "10s" }}
+        kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names: {{ $dragonflyMetrics.namespaces | default (.Values.prometheusServer.config.namespaces | default (list "dragonfly-system-common-akernel")) | toJson }}
+
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_service_label_app]
+          action: keep
+          regex: dragonfly
+        - source_labels: [__meta_kubernetes_service_label_component]
+          action: keep
+          regex: (manager|scheduler|seed-client|client)-metrics
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: http-metrics
+        - source_labels: [__meta_kubernetes_endpoint_ready]
+          action: keep
+          regex: "true"
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: service
+        - source_labels: [__meta_kubernetes_service_label_component]
+          action: replace
+          regex: (.*)-metrics
+          target_label: component
+          replacement: $1
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          action: replace
+          target_label: node
+        - source_labels: [__meta_kubernetes_endpoint_address_target_name]
+          action: replace
+          target_label: endpoint_target
+
+{{- end }}
+
+      # Dynamic discovery: Pod-level monitoring with annotation-based service discovery
+      - job_name: 'auto-discovery-pods'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names: {{ .Values.prometheusServer.config.namespaces | default (list "dragonfly-system-common-akernel") | toJson }}
+
+        relabel_configs:
+        # Select only pods with prometheus.io/scrape=true annotation
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: "true"
+
+        # Configure metrics path from prometheus.io/path annotation
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+
+        # Configure port from prometheus.io/port annotation
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+
+        # Add component type from namespace label
+        - source_labels: [__meta_kubernetes_namespace_label_monitoring_akernel_io_component]
+          action: replace
+          target_label: component_type
+
+        # Add standard Kubernetes labels for identification
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: pod
+        - source_labels: [__meta_kubernetes_pod_label_app]
+          action: replace
+          target_label: app
+
+      # Dynamic discovery: Service-level monitoring with annotation-based service discovery
+      - job_name: 'auto-discovery-services'
+        kubernetes_sd_configs:
+        - role: service
+          namespaces:
+            names: {{ .Values.prometheusServer.config.namespaces | default (list "dragonfly-system-common-akernel") | toJson }}
+
+        relabel_configs:
+        # Select only services with prometheus.io/scrape=true annotation
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+          action: keep
+          regex: "true"
+
+        # Configure metrics path from prometheus.io/path annotation
+        - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+
+        # Configure port from prometheus.io/port annotation
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+
+        # Skip headless services (ClusterIP=None)
+        - source_labels: [__meta_kubernetes_service_cluster_ip]
+          action: drop
+          regex: None
+
+        # Add standard Kubernetes labels for identification
+        - source_labels: [__meta_kubernetes_service_name]
+          action: replace
+          target_label: service
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_service_label_app]
+          action: replace
+          target_label: app
+
+  pushgateways.json: |
+    {{ .Values.prometheusServer.config.pushgateways | toJson | indent 4 }}

@@ -1,0 +1,122 @@
+{{- if .Values.kruise.enabled }}
+apiVersion: apps.kruise.io/v1alpha1
+{{- else }}
+apiVersion: apps/v1
+{{- end }}
+kind: StatefulSet
+metadata:
+  name: grafana
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: grafana
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  replicas: {{ .Values.grafanaServer.replicaCount }}
+  serviceName: {{ .Values.grafanaServer.service.name }}
+  selector:
+    matchLabels:
+      component: grafana
+  updateStrategy:
+    type: RollingUpdate
+    {{- if .Values.kruise.enabled }}
+    rollingUpdate:
+      podUpdatePolicy: InPlaceIfPossible
+    {{- end }}
+  template:
+    metadata:
+      annotations:
+        checksum/grafana-datasources: {{ include (print $.Template.BasePath "/grafana/configmap.yaml") . | sha256sum }}
+        checksum/grafana-dashboards: {{ (.Files.Glob "dashboards/*.json").AsConfig | sha256sum }}
+        checksum/grafana-dashboards-provider: {{ include (print $.Template.BasePath "/grafana/configmap-dashboards-provider.yaml") . | sha256sum }}
+      labels:
+        {{- include "monitor.labels" . | nindent 8 }}
+        component: grafana
+        {{- with .Values.extraLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.kruise.enabled }}
+      readinessGates:
+      - conditionType: InPlaceUpdateReady
+      {{- end }}
+      initContainers:
+      - name: fix-permissions
+        image: "{{ .Values.grafanaServer.image.repository }}:{{ .Values.grafanaServer.image.tag }}"
+        securityContext:
+          runAsUser: 0
+        command: ["sh", "-c", "chown -R 65534:65534 /var/lib/grafana && chmod -R 777 /var/lib/grafana"]
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+      containers:
+      - name: grafana
+        image: "{{ .Values.grafanaServer.image.repository }}:{{ .Values.grafanaServer.image.tag }}"
+        imagePullPolicy: {{ .Values.grafanaServer.image.pullPolicy }}
+        ports:
+        - containerPort: 3000
+          name: grafana
+        env:
+        - name: GF_SECURITY_ADMIN_USER
+          value: {{ .Values.grafanaServer.env.adminUser | quote }}
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.grafanaServer.env.secretName }}
+              key: {{ .Values.grafanaServer.env.secretKey }}
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_SERVER_ROOT_URL
+          value: {{ .Values.grafanaServer.env.rootUrl | quote }}
+        - name: GF_SERVER_SERVE_FROM_SUB_PATH
+          value: {{ .Values.grafanaServer.env.serveFromSubPath | quote }}
+        volumeMounts:
+        - name: grafana-storage
+          mountPath: /var/lib/grafana
+        - name: grafana-datasources
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards
+        - name: grafana-dashboards-provider
+          mountPath: /etc/grafana/provisioning/dashboards
+        resources:
+          {{- toYaml .Values.grafanaServer.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: {{ if .Values.grafanaServer.env.serveFromSubPath }}/grafana{{ end }}/api/health
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: {{ if .Values.grafanaServer.env.serveFromSubPath }}/grafana{{ end }}/api/health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      - name: grafana-storage
+        persistentVolumeClaim:
+          claimName: grafana-pvc-ssd
+      - name: grafana-datasources
+        configMap:
+          name: grafana-datasources
+      - name: grafana-dashboards
+        configMap:
+          name: grafana-dashboards
+      - name: grafana-dashboards-provider
+        configMap:
+          name: grafana-dashboards-provider

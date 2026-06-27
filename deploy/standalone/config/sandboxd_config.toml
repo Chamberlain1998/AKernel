@@ -1,0 +1,58 @@
+rootDir="/home/akernel/sandboxd/root"
+storeDir="/home/akernel/sandboxd/store"
+
+[plugin]
+disable_tcp_service=false
+stream_idle_timeout=""
+stream_server_address=""
+stream_server_port=""
+
+[plugin.network]
+# Keep this range distinct from Docker's default bridge network
+# (usually 172.17.0.0/16). If it overlaps, container replies to
+# host-published ports can be routed to sandbox0 instead of eth0.
+ip_range="10.88.0.1/16"
+nat_backend="iptables"
+
+[plugin.resource]
+cgroup_cache_size=800
+pids_max=4096
+netns_cache_size=1000
+interface_cache_size=1000
+cgroup_root_name="/akernel"
+max_instance_num=1000
+enable_cache_in_stock_mode=true
+
+[plugin.runtime]
+image_lib_dir="/home/akernel/images"
+# filestore_dir must reside on an XFS filesystem with reflink support.
+# sandboxd will automatically create an XFS image at /home/akernel/xfs.img
+# and mount it here if the mount point does not already exist as XFS.
+# filestore_dir_size controls the size of that XFS image.
+filestore_dir="/home/akernel/xfs"
+filestore_dir_size="50G"
+overlay_tmpfs_size="10G"
+
+[plugin.runtime.basic_spec]
+runsc="/home/akernel/images/config.json"
+
+[plugin.runtime.runtime_binary]
+runsc="/usr/local/bin/runsc"
+
+# image-manager config. root holds image-manager runtime state and is wiped
+# on pod change; input configs live under /home/akernel/sandboxd/config/ so the
+# wipe never hits them.
+[plugin.image]
+root="/home/akernel/sandboxd/image_manager"
+distill_fs_bin="/usr/local/bin/distill_fs"
+oss_template="/home/akernel/sandboxd/config/oss.json"
+nydus_template="/home/akernel/sandboxd/config/registry.json"
+nydus_suffix="_nydus_v3"
+oss_auths_path="/home/akernel/sandboxd/config/oss_auths.json"
+registry_auths_path="/home/akernel/sandboxd/config/registry_auths.json"
+cgroup_memory_limit="64GiB"
+
+# No [plugin.node_resource] section: standalone/local mode does not report
+# node resources to a scheduler, so sandboxd skips the node-resource module
+# (and does not bind /var/run/resource.sock). Add the section back to enable
+# it.

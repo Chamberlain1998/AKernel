@@ -1,0 +1,13 @@
+{{- if or .Values.monitoring.prometheusEndpoint .Values.monitoring.lokiEndpoint .Values.monitoring.tempoEndpoint }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: akernel-otel-collector-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: akernel
+    component: otel-collector
+data:
+  otel_config.yaml: |
+{{ .Files.Get "files/otel-collector/config.yaml" | indent 4 }}
+{{- end }}

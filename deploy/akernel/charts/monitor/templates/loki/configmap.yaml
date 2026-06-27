@@ -1,0 +1,16 @@
+{{- if .Values.loki.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: loki
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+data:
+  local-config.yaml: |
+{{ .Files.Get "files/loki/local-config.yaml" | indent 4 }}
+{{- end }}

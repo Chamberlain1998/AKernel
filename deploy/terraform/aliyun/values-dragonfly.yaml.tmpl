@@ -1,0 +1,175 @@
+%{ if image_registry != "" ~}
+global:
+  imageRegistry: "${image_registry}"
+%{ endif ~}
+
+manager:
+  replicas: ${manager_replicas}
+%{ if image_registry != "" || manager_image_tag != "" ~}
+  image:
+%{ if image_registry != "" ~}
+    repository: dragonfly-manager
+%{ endif ~}
+%{ if manager_image_tag != "" ~}
+    tag: "${manager_image_tag}"
+%{ endif ~}
+%{ endif ~}
+%{ if image_registry != "" ~}
+  initContainer:
+    image:
+      repository: busybox
+      tag: "1.37.0-musl"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: "${manager_cpu_request}"
+      memory: "${manager_memory_request}"
+    limits:
+      cpu: "${manager_cpu_limit}"
+      memory: "${manager_memory_limit}"
+  nodeSelector:
+    ${server_label_key}: "${server_label_value}"
+  tolerations:
+    - key: "${server_taint_key}"
+      value: "${server_taint_value}"
+      effect: "${server_taint_effect}"
+      operator: "Equal"
+
+scheduler:
+  replicas: ${scheduler_replicas}
+%{ if image_registry != "" || scheduler_image_tag != "" ~}
+  image:
+%{ if image_registry != "" ~}
+    repository: dragonfly-scheduler
+%{ endif ~}
+%{ if scheduler_image_tag != "" ~}
+    tag: "${scheduler_image_tag}"
+%{ endif ~}
+%{ endif ~}
+%{ if image_registry != "" ~}
+  initContainer:
+    image:
+      repository: busybox
+      tag: "1.37.0-musl"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: "${scheduler_cpu_request}"
+      memory: "${scheduler_memory_request}"
+    limits:
+      cpu: "${scheduler_cpu_limit}"
+      memory: "${scheduler_memory_limit}"
+  nodeSelector:
+    ${server_label_key}: "${server_label_value}"
+  tolerations:
+    - key: "${server_taint_key}"
+      value: "${server_taint_value}"
+      effect: "${server_taint_effect}"
+      operator: "Equal"
+
+seedClient:
+  replicas: ${seed_replicas}
+%{ if image_registry != "" || seed_client_image_tag != "" ~}
+  image:
+%{ if image_registry != "" ~}
+    repository: dragonfly-client
+%{ endif ~}
+%{ if seed_client_image_tag != "" ~}
+    tag: "${seed_client_image_tag}"
+%{ endif ~}
+%{ endif ~}
+%{ if image_registry != "" ~}
+  initContainer:
+    image:
+      repository: busybox
+      tag: "1.37.0-musl"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: "${seed_client_cpu_request}"
+      memory: "${seed_client_memory_request}"
+    limits:
+      cpu: "${seed_client_cpu_limit}"
+      memory: "${seed_client_memory_limit}"
+  nodeSelector:
+    ${seed_label_key}: "${seed_label_value}"
+  tolerations:
+    - key: "${seed_taint_key}"
+      value: "${seed_taint_value}"
+      effect: "${seed_taint_effect}"
+      operator: "Equal"
+  persistence:
+    enable: true
+    size: "${seed_client_pvc_size}"
+%{ if dragonfly_storage_class != "" ~}
+    storageClass: "${dragonfly_storage_class}"
+%{ endif ~}
+  extraVolumes:
+    - name: logs
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: logs
+      mountPath: /var/log/dragonfly/dfdaemon/
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: dragonfly
+              component: seed-client
+          topologyKey: kubernetes.io/hostname
+
+client:
+  enable: false
+%{ if client_image_tag != "" ~}
+  image:
+    tag: "${client_image_tag}"
+%{ endif ~}
+%{ if dfinit_image_tag != "" ~}
+  dfinit:
+    image:
+      tag: "${dfinit_image_tag}"
+%{ endif ~}
+
+%{ if injector_image_tag != "" ~}
+injector:
+  image:
+    tag: "${injector_image_tag}"
+%{ endif ~}
+
+mysql:
+%{ if image_registry != "" ~}
+  image:
+    repository: mysql
+    tag: "8.4.3-debian-12-r0"
+%{ endif ~}
+  primary:
+    persistence:
+      size: 20Gi
+      storageClass: "${storage_class}"
+    nodeSelector:
+      ${server_label_key}: "${server_label_value}"
+    tolerations:
+      - key: "${server_taint_key}"
+        value: "${server_taint_value}"
+        effect: "${server_taint_effect}"
+        operator: "Equal"
+
+redis:
+  architecture: standalone
+%{ if image_registry != "" ~}
+  image:
+    repository: redis
+    tag: "7.2.5-debian-12-r0"
+%{ endif ~}
+  master:
+    persistence:
+      size: 20Gi
+      storageClass: "${storage_class}"
+    nodeSelector:
+      ${server_label_key}: "${server_label_value}"
+    tolerations:
+      - key: "${server_taint_key}"
+        value: "${server_taint_value}"
+        effect: "${server_taint_effect}"
+        operator: "Equal"

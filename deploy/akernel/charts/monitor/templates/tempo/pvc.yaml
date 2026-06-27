@@ -1,0 +1,21 @@
+{{- if and .Values.tempo.enabled .Values.tempo.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tempo-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: tempo
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  accessModes:
+    - {{ .Values.tempo.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.tempo.persistence.size | quote }}
+  storageClassName: {{ .Values.tempo.persistence.storageClass | quote }}
+  volumeMode: Filesystem
+{{- end }}

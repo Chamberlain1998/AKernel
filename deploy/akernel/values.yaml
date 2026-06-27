@@ -1,0 +1,6 @@
+core:
+  createNamespace: false
+
+monitor:
+  enabled: true
+  createNamespace: false

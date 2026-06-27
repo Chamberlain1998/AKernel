@@ -1,0 +1,26 @@
+{{- $namespace := default .Release.Namespace .Values.namespaceOverride -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: akernel-node-resource-{{ $namespace }}
+rules:
+  # sandboxd's node-resource module watches the local Node and the Pods
+  # scheduled to it, then exposes the available capacity to openYuanrong over
+  # /var/run/resource.sock. Field selectors narrow the requests at runtime,
+  # but Kubernetes still requires cluster-scoped list/watch permissions.
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: akernel-node-resource-{{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "core.serviceAccountName" . }}
+    namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: akernel-node-resource-{{ $namespace }}

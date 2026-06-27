@@ -1,0 +1,9 @@
+apiVersion: v2
+name: core
+description: AKernel control plane, gateway, and sandbox worker runtime
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/akernel-dev/akernel
+sources:
+  - https://github.com/akernel-dev/akernel

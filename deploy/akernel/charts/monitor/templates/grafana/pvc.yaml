@@ -1,0 +1,17 @@
+{{- if .Values.grafanaServer.persistence.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc-ssd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.grafanaServer.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.grafanaServer.persistence.size | quote }}
+  storageClassName: {{ .Values.grafanaServer.persistence.storageClass | quote }}
+  volumeMode: Filesystem
+{{- end }}

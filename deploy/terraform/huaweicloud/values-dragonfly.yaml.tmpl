@@ -1,0 +1,131 @@
+%{ if image_registry != "" ~}
+global:
+  imageRegistry: "${image_registry}"
+%{ endif ~}
+
+manager:
+  replicas: ${manager_replicas}
+%{ if manager_image_tag != "" ~}
+  image:
+    tag: "${manager_image_tag}"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: "${manager_cpu_request}"
+      memory: "${manager_memory_request}"
+    limits:
+      cpu: "${manager_cpu_limit}"
+      memory: "${manager_memory_limit}"
+  nodeSelector:
+    ${server_label_key}: "${server_label_value}"
+  tolerations:
+    - key: "${server_taint_key}"
+      value: "${server_taint_value}"
+      effect: "${server_taint_effect}"
+      operator: "Equal"
+
+scheduler:
+  replicas: ${scheduler_replicas}
+%{ if scheduler_image_tag != "" ~}
+  image:
+    tag: "${scheduler_image_tag}"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: "${scheduler_cpu_request}"
+      memory: "${scheduler_memory_request}"
+    limits:
+      cpu: "${scheduler_cpu_limit}"
+      memory: "${scheduler_memory_limit}"
+  nodeSelector:
+    ${server_label_key}: "${server_label_value}"
+  tolerations:
+    - key: "${server_taint_key}"
+      value: "${server_taint_value}"
+      effect: "${server_taint_effect}"
+      operator: "Equal"
+
+seedClient:
+  replicas: ${seed_replicas}
+%{ if seed_client_image_tag != "" ~}
+  image:
+    tag: "${seed_client_image_tag}"
+%{ endif ~}
+  resources:
+    requests:
+      cpu: "${seed_client_cpu_request}"
+      memory: "${seed_client_memory_request}"
+    limits:
+      cpu: "${seed_client_cpu_limit}"
+      memory: "${seed_client_memory_limit}"
+  nodeSelector:
+    ${seed_label_key}: "${seed_label_value}"
+  tolerations:
+    - key: "${seed_taint_key}"
+      value: "${seed_taint_value}"
+      effect: "${seed_taint_effect}"
+      operator: "Equal"
+  persistence:
+    enable: true
+    hostPath:
+      path: /mnt/dragonfly-seed
+      type: DirectoryOrCreate
+  extraVolumes:
+    - name: logs
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: logs
+      mountPath: /var/log/dragonfly/dfdaemon/
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app: dragonfly
+              component: seed-client
+          topologyKey: kubernetes.io/hostname
+
+client:
+  enable: false
+%{ if client_image_tag != "" ~}
+  image:
+    tag: "${client_image_tag}"
+%{ endif ~}
+%{ if dfinit_image_tag != "" ~}
+  dfinit:
+    image:
+      tag: "${dfinit_image_tag}"
+%{ endif ~}
+
+%{ if injector_image_tag != "" ~}
+injector:
+  image:
+    tag: "${injector_image_tag}"
+%{ endif ~}
+
+mysql:
+  primary:
+    persistence:
+      size: 20Gi
+    nodeSelector:
+      ${server_label_key}: "${server_label_value}"
+    tolerations:
+      - key: "${server_taint_key}"
+        value: "${server_taint_value}"
+        effect: "${server_taint_effect}"
+        operator: "Equal"
+
+redis:
+  master:
+    persistence:
+      size: 20Gi
+    nodeSelector:
+      ${server_label_key}: "${server_label_value}"
+    tolerations:
+      - key: "${server_taint_key}"
+        value: "${server_taint_value}"
+        effect: "${server_taint_effect}"
+        operator: "Equal"
+  replica:
+    persistence:
+      size: 20Gi

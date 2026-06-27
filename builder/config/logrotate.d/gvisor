@@ -1,0 +1,9 @@
+/home/akernel/logs/runsc/runsc.log {
+    size 256M
+    rotate 5
+    maxage 30
+    compress
+    missingok
+    notifempty
+    copytruncate
+}

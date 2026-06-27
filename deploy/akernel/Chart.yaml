@@ -1,0 +1,23 @@
+apiVersion: v2
+name: akernel
+description: Cluster-backed remote sandboxes for AI agents
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/akernel-dev/akernel
+sources:
+  - https://github.com/akernel-dev/akernel
+keywords:
+  - ai-agents
+  - sandbox
+  - gvisor
+  - serverless
+
+dependencies:
+  - name: core
+    version: 0.1.0
+    repository: "file://./charts/core"
+  - name: monitor
+    version: 0.1.0
+    repository: "file://./charts/monitor"
+    condition: monitor.enabled

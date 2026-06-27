@@ -1,0 +1,25 @@
+{{- if .Values.loki.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.loki.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    component: loki
+    {{- with .Values.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  type: {{ .Values.loki.service.type }}
+  {{- if .Values.loki.service.isHeadless }}
+  clusterIP: None
+  {{- end }}
+  ports:
+  - port: {{ .Values.loki.service.port }}
+    targetPort: {{ .Values.loki.service.targetPort }}
+    protocol: {{ .Values.loki.service.protocol }}
+    name: http
+  selector:
+    component: loki
+{{- end }}

@@ -1,0 +1,117 @@
+createNamespace: false
+
+%{ if acr_secret_enabled ~}
+imagePullSecrets:
+  - name: acr-secret
+
+imagePullSecret:
+  create: true
+  name: "acr-secret"
+  dockerconfigjson: "${base64encode(jsonencode({ auths = { (acr_host) = { username = acr_username, password = acr_password } } }))}"
+%{ endif ~}
+
+kruise:
+  enabled: ${enable_kruise}
+
+grafanaServer:
+%{ if image_registry != "" ~}
+  image:
+    repository: "${image_registry}/grafana"
+    tag: "11.5.2"
+%{ endif ~}
+  service:
+    type: ${grafana_public_access ? "LoadBalancer" : "ClusterIP"}
+%{ if grafana_public_access && grafana_acl_id != "" ~}
+    annotations:
+      service.beta.kubernetes.io/alibaba-cloud-loadbalancer-acl-status: "on"
+      service.beta.kubernetes.io/alibaba-cloud-loadbalancer-acl-id: "${grafana_acl_id}"
+      service.beta.kubernetes.io/alibaba-cloud-loadbalancer-acl-type: "white"
+%{ endif ~}
+  env:
+    rootUrl: ${grafana_public_access ? "/" : "/grafana/"}
+    serveFromSubPath: ${grafana_public_access ? false : true}
+    adminPassword: "${grafana_admin_password}"
+  resources:
+    limits:
+      cpu: "${grafana_cpu}"
+      memory: "${grafana_memory}"
+      ephemeral-storage: "${grafana_ephemeral}"
+    requests:
+      cpu: "${grafana_cpu}"
+      memory: "${grafana_memory}"
+      ephemeral-storage: "${grafana_ephemeral}"
+  persistence:
+    storageClass: "${monitor_storage_class}"
+    size: "${grafana_pvc_size}"
+
+prometheusServer:
+%{ if image_registry != "" ~}
+  image:
+    repository: "${image_registry}/prometheus"
+    tag: "v3.2.1"
+%{ endif ~}
+  config:
+    dragonflyMetrics:
+      enabled: ${install_dragonfly}
+%{ if install_dragonfly ~}
+      namespaces:
+        - "${dragonfly_namespace}"
+%{ else ~}
+      namespaces: []
+%{ endif ~}
+      scrapeInterval: 30s
+      scrapeTimeout: 10s
+    pushgateways: []
+  resources:
+    limits:
+      cpu: "${prometheus_cpu}"
+      memory: "${prometheus_memory}"
+      ephemeral-storage: "${prometheus_ephemeral}"
+    requests:
+      cpu: "${prometheus_cpu}"
+      memory: "${prometheus_memory}"
+      ephemeral-storage: "${prometheus_ephemeral}"
+  persistence:
+    storageClass: "${monitor_storage_class}"
+    size: "${prometheus_pvc_size}"
+
+loki:
+%{ if image_registry != "" ~}
+  image:
+    repository: "${image_registry}/loki"
+    tag: "3.4.2"
+%{ endif ~}
+  resources:
+    limits:
+      cpu: "${loki_cpu}"
+      memory: "${loki_memory}"
+      ephemeral-storage: "${loki_ephemeral}"
+    requests:
+      cpu: "${loki_cpu}"
+      memory: "${loki_memory}"
+      ephemeral-storage: "${loki_ephemeral}"
+  persistence:
+    storageClass: "${monitor_storage_class}"
+    size: "${loki_pvc_size}"
+
+tempo:
+%{ if image_registry != "" ~}
+  image:
+    repository: "${image_registry}/tempo"
+    tag: "2.7.1"
+  waitForPrometheusImage:
+    repository: "${image_registry}/busybox"
+    tag: "1.37.0-musl"
+%{ endif ~}
+  resources:
+    limits:
+      cpu: "${tempo_cpu}"
+      memory: "${tempo_memory}"
+      ephemeral-storage: "${tempo_ephemeral}"
+    requests:
+      cpu: "${tempo_cpu}"
+      memory: "${tempo_memory}"
+      ephemeral-storage: "${tempo_ephemeral}"
+  persistence:
+    storageClass: "${monitor_storage_class}"
+    size: "${tempo_pvc_size}"
