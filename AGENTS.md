@@ -53,6 +53,8 @@ make plan
 make deploy
 make token TTL=24h
 make print-env
+make sdk-test
+make deploy-script-check
 make e2e
 ```
 
@@ -276,6 +278,13 @@ Run SDK unit tests with:
 
 ```bash
 make sdk-test
+```
+
+Run syntax checks for the tracked Bash deployment scripts, Terraform shell
+templates, and Python deployment helpers with:
+
+```bash
+make deploy-script-check
 ```
 
 Run the basic e2e example against a deployed cluster with:

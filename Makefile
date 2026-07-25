@@ -54,6 +54,7 @@ help:
 	@echo "  make token TTL=24h                 Generate a local JWT token"
 	@echo "  make print-env                     Print SDK environment exports"
 	@echo "  make sdk-check                     Lint, type-check, and test the Python SDK"
+	@echo "  make deploy-script-check           Check deployment script syntax"
 	@echo "  make e2e                           Run the basic SDK e2e example"
 	@echo "  make destroy                       Destroy cloud resources"
 
@@ -152,6 +153,28 @@ sdk-check: sdk-test
 	cd sdk/python; \
 	python3 -m ruff check akernel_sdk tests; \
 	python3 -m mypy akernel_sdk
+
+.PHONY: deploy-script-check
+deploy-script-check:
+	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY; \
+	set -euo pipefail; \
+	while IFS= read -r -d '' script; do \
+		bash -n "$$script"; \
+	done < <(git ls-files -z -- 'deploy/**/*.sh'); \
+	while IFS= read -r -d '' template; do \
+		if ! bash -n <( \
+			sed \
+				-e '/^[[:space:]]*%{.*}[[:space:]]*$$/d' \
+				-e 's/[$$][$$]/$$/g' \
+				"$$template" \
+		); then \
+			echo "Invalid shell template syntax: $$template" >&2; \
+			exit 1; \
+		fi; \
+	done < <(git ls-files -z -- 'deploy/**/*.sh.tftpl'); \
+	git ls-files -z -- 'deploy/**/*.py' | \
+		xargs -0 -r python3 -c \
+		'import pathlib, sys; [compile(pathlib.Path(path).read_bytes(), path, "exec") for path in sys.argv[1:]]'
 
 .PHONY: destroy
 destroy:
