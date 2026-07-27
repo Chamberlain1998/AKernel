@@ -168,7 +168,7 @@ See the complete [basic usage example](./sdk/python/examples/basic_usage.py), th
 - [ ] Fork-based sandbox launch based on gVisor
 - [ ] Sandbox checkpoint and restore
 - [ ] Support for GKE and AWS
-- [ ] Cgroup v2 node support
+- [x] Cgroup v2 node support
 
 ## License
 

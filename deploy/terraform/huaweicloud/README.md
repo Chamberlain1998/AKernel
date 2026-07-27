@@ -6,8 +6,6 @@ contract as the Aliyun module: one all-in-one AKernel image, a generated IAM
 seed, dual-entrypoint Traefik, optional public Grafana, and local state under
 `.akernel/<env>/`.
 
-AKernel 0.1.0 has been tested on Linux x86-64 nodes using cgroup v1.
-
 ## Prerequisites
 
 - Terraform 1.5 or later

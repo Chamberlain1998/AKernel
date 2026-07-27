@@ -151,10 +151,6 @@ make deploy
 make print-env
 ```
 
-AKernel `v0.1.0` node runtime currently requires Linux x86-64 nodes with
-cgroup v1. Do not deploy it to cgroup v2 nodes or assume bootstrap will detect
-an incompatible host before sandboxd starts.
-
 Kata is present in the default AKernel runtime configuration but is an
 optional node capability. It additionally requires `/dev/kvm` to be usable
 from the node container. A node without KVM remains ready and advertises only

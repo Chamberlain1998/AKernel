@@ -124,8 +124,8 @@ variable "zone_ids" {
 
 variable "k8s_version" {
   type        = string
-  description = "ACK Kubernetes version. NOTE: 1.35+ requires cgroup v2 (no cgroup v1 support). Use 1.34 or earlier if sandboxd needs cgroup v1."
-  default     = "1.34.3-aliyun.1"
+  description = "ACK Kubernetes version."
+  default     = "1.35.2-aliyun.1"
 }
 
 variable "network_addon" {
