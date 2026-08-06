@@ -5,6 +5,43 @@
 # SPDX-License-Identifier: Apache-2.0
 ulimit -n 32768
 export YR_RUNTIME_BACKEND=sandboxd
+
+resolve_node_ip() {
+    local default_device
+    local node_ip
+
+    if [ -n "${AKERNEL_NODE_IP:-}" ]; then
+        printf '%s\n' "${AKERNEL_NODE_IP}"
+        return
+    fi
+    if [ -n "${INSTANCE_IP:-}" ]; then
+        printf '%s\n' "${INSTANCE_IP}"
+        return
+    fi
+    if ! command -v ip >/dev/null 2>&1; then
+        echo "ip is required to discover the AKernel node address" >&2
+        return 1
+    fi
+
+    default_device="$(ip -4 route show default | awk 'NR == 1 { print $5 }')"
+    if [ -z "${default_device}" ]; then
+        echo "the AKernel network namespace has no IPv4 default route" >&2
+        return 1
+    fi
+    node_ip="$(
+        ip -4 -o address show dev "${default_device}" scope global |
+            awk 'NR == 1 { split($4, address, "/"); print address[1] }'
+    )"
+    if [ -z "${node_ip}" ]; then
+        echo "default-route device ${default_device} has no global IPv4 address" >&2
+        return 1
+    fi
+    printf '%s\n' "${node_ip}"
+}
+
+YR_NODE_IP="$(resolve_node_ip)"
+echo "Using ${YR_NODE_IP} as the YuanRong node address"
+
 # Set enable_traefik_registry based on TRAEFIK_MODE
 if [ "${TRAEFIK_MODE:-etcd}" = "etcd" ]; then
     ENABLE_TRAEFIK_REGISTRY=${ENABLE_TRAEFIK_REGISTRY:-true}
@@ -22,6 +59,7 @@ if [  "x${AKS_LOCAL_MODE}" == "xtrue" ]; then
         exit 1
     fi
     /usr/bin/yr start --master \
+        --ip_address "${YR_NODE_IP}" \
         --port_policy FIX \
         --enable_function_scheduler=false \
         --enable_faas_frontend=true \
@@ -69,6 +107,7 @@ if [  "x${AKS_LOCAL_MODE}" == "xtrue" ]; then
         --enable_direct_routing false
 else
     /usr/bin/yr start \
+        --ip_address "${YR_NODE_IP}" \
         --port_policy FIX \
         --ds_node_timeout_s 30 \
         --ds_client_dead_timeout_s 60 \

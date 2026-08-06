@@ -282,6 +282,14 @@ node-resource provider in standalone mode; Kubernetes deployments retain the
 Kubernetes provider. Standalone explicitly enables local DNAT because the
 frontend shares the node network namespace.
 
+Standalone uses iptables NAT by default. Set `AKERNEL_NAT_BACKEND=bpfnat` to
+use the experimental embedded TC eBPF backend. AKernel prepares the required
+network-namespace sysctls, but bpfnat does not change firewall policy; custom
+host-network deployments with `FORWARD=DROP` must allow traffic to and from
+the sandbox bridge. YuanRong receives `INSTANCE_IP` in Kubernetes or the
+default-route interface address in standalone mode; `AKERNEL_NODE_IP` is the
+explicit override for multi-homed environments.
+
 The standalone sandboxd filestore is a loop-mounted XFS image under the
 bind-mounted `deploy/standalone/data/` directory. Explicit `storage_mb` quotas
 use this local-disk filestore; omitting `storage_mb` retains the configured

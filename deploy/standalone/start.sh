@@ -20,6 +20,8 @@ IMAGE="${IMAGE:-akerneldev/all-in-one:latest}"
 TRAEFIK_IMAGE="${TRAEFIK_IMAGE:-traefik:v3.6.8}"
 IAM_SEED_FILE="${DATA_DIR}/iam-seed"
 TOKEN_FILE="${DATA_DIR}/token"
+SANDBOXD_CONFIG_FILE="${DATA_DIR}/sandboxd/config.toml"
+AKERNEL_NAT_BACKEND="${AKERNEL_NAT_BACKEND:-iptables}"
 LITEBUS_DATA_KEY=""
 
 # Container runtime command (docker or pouch)
@@ -224,6 +226,35 @@ configure_gpu() {
     log_info "Enabling NVIDIA GPU access for the AKernel node container"
 }
 
+configure_network() {
+    local config_tmp="${SANDBOXD_CONFIG_FILE}.tmp"
+
+    case "${AKERNEL_NAT_BACKEND}" in
+        iptables|bpfnat)
+            ;;
+        *)
+            log_error "AKERNEL_NAT_BACKEND must be 'iptables' or 'bpfnat'"
+            exit 1
+            ;;
+    esac
+
+    if ! grep -q '^[[:space:]]*nat_backend[[:space:]]*=' \
+        "${CONFIG_DIR}/sandboxd_config.toml"; then
+        log_error "Missing nat_backend in ${CONFIG_DIR}/sandboxd_config.toml"
+        exit 1
+    fi
+    sed -E \
+        "s/^[[:space:]]*nat_backend[[:space:]]*=.*/nat_backend=\"${AKERNEL_NAT_BACKEND}\"/" \
+        "${CONFIG_DIR}/sandboxd_config.toml" > "${config_tmp}"
+    mv "${config_tmp}" "${SANDBOXD_CONFIG_FILE}"
+
+    if [[ "${AKERNEL_NAT_BACKEND}" == "bpfnat" ]]; then
+        log_warn "Using the experimental bpfnat network backend"
+    else
+        log_info "Using the iptables network backend"
+    fi
+}
+
 # Start the AKernel all-in-one container. Traefik runs separately so traffic
 # from the gateway enters this network namespace through PREROUTING.
 start_node_container() {
@@ -255,7 +286,7 @@ start_node_container() {
         -v "${CONFIG_DIR}/registry_auths.json:/home/akernel/sandboxd/config/registry_auths.json:ro" \
         -v "${CONFIG_DIR}/registry.json:/home/akernel/sandboxd/config/registry.json:ro" \
         -v "${CONFIG_DIR}/config.json:/home/akernel/images/config.json:ro" \
-        -v "${CONFIG_DIR}/sandboxd_config.toml:/home/akernel/sandboxd/config.toml:ro" \
+        -v "${SANDBOXD_CONFIG_FILE}:/home/akernel/sandboxd/config.toml:ro" \
         "${IMAGE}"
 }
 
@@ -394,6 +425,7 @@ ensure_image "${IMAGE}"
 ensure_image "${TRAEFIK_IMAGE}"
 configure_container_proxy
 configure_gpu
+configure_network
 start_node_container
 wait_for_ready
 NODE_IP="$(container_ip "${NODE_CONTAINER_NAME}")"

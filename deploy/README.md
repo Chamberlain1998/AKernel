@@ -27,6 +27,13 @@ make e2e
 
 Kata Containers is enabled in the default AKernel runtime configuration and adds one host requirement: `/dev/kvm` must be available to the node container. Nodes without a usable KVM device remain ready and advertise only runsc. If no node advertises Kata, `Sandbox(runtime="kata")` fails scheduling with a no-resource error.
 
+The iptables sandbox NAT backend remains the default. Terraform deployments
+can set `sandboxd_nat_backend = "bpfnat"` to use sandboxd's experimental
+embedded TC eBPF backend on nodes without iptables NAT or conntrack modules.
+The node must support TC eBPF and bpffs. bpfnat does not manage host firewall
+policy, so custom host-network deployments must allow forwarding to and from
+the sandbox bridge when their `FORWARD` policy is `DROP`.
+
 `make config` is interactive by default. It writes:
 
 - `.akernel/default/config.env`

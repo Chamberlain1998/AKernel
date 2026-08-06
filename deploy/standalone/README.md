@@ -32,6 +32,29 @@ host, and sandboxd creates `data/xfs.img` as a loop-backed XFS filesystem when
 needed; quota-backed writable layers therefore use local disk rather than
 tmpfs.
 
+### Network backend
+
+Standalone uses the iptables NAT backend by default. Nodes without the
+required iptables NAT and conntrack kernel modules can select the experimental
+embedded TC eBPF backend:
+
+```bash
+AKERNEL_NAT_BACKEND=bpfnat ./start.sh
+```
+
+The node container remains privileged and must be able to load TC eBPF
+programs and mount or access bpffs. AKernel enables IPv4 forwarding before
+sandboxd starts and disables global reverse-path filtering inside the node
+network namespace when bpfnat local DNAT is enabled. bpfnat replaces NAT; it
+does not override firewall policy. A custom host-network deployment whose
+`FORWARD` policy is `DROP` must allow traffic to and from `sandbox0` with
+bridge- and sandbox-CIDR-scoped rules.
+
+AKernel passes YuanRong the IPv4 address of the default-route interface so the
+later creation of `sandbox0` cannot change the advertised node address. Set
+`AKERNEL_NODE_IP` only when a multi-homed deployment requires an explicit
+override.
+
 ## Directory Structure
 
 ```
@@ -97,6 +120,8 @@ This will:
 - Start an independent Traefik container for the HTTPS API and HTTP sandbox
   port-forwarding gateway
 - Generate a deployment-specific IAM signing seed and a 24-hour SDK token
+- Generate a sandboxd config using `AKERNEL_NAT_BACKEND` (`iptables` by
+  default)
 - Print the Traefik container IP to use as `AKERNEL_SERVER_ADDRESS`
 
 No host ports are published. On Linux, the host accesses Traefik directly

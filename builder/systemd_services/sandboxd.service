@@ -11,7 +11,7 @@ Environment=GOGC=300
 Environment=GOMEMLIMIT=4GiB
 EnvironmentFile=-/etc/akernel/proxy.env
 
-ExecStartPre=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
+ExecStartPre=/usr/local/bin/sandboxd-network-prepare
 ExecStartPre=/bin/mkdir -p /home/akernel/logs/sandboxd
 ExecStart=/bin/bash -ce "exec /usr/local/bin/sandboxd \
   -log-level debug \

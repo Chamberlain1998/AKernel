@@ -12,6 +12,7 @@ stream_server_port=""
 # (usually 172.17.0.0/16). If it overlaps, container replies to
 # host-published ports can be routed to sandbox0 instead of eth0.
 ip_range="10.88.0.1/16"
+# start.sh overrides this value when AKERNEL_NAT_BACKEND is set.
 nat_backend="iptables"
 # The all-in-one frontend shares this network namespace with sandboxd and
 # reaches forwarded sandbox ports through the node-local address.

@@ -244,6 +244,7 @@ RUN ln -sf /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 /usr/local/bin/conta
 
 COPY ./builder/scripts/akernel-entrypoint.sh /usr/local/bin/akernel-entrypoint
 COPY ./builder/scripts/ensure-component-cert.sh /usr/local/bin/ensure-component-cert
+COPY ./builder/scripts/sandboxd_network_prepare.sh /usr/local/bin/sandboxd-network-prepare
 RUN chmod 0755 \
         /usr/local/bin/runsc \
         /usr/local/bin/sandboxd \
@@ -252,7 +253,8 @@ RUN chmod 0755 \
         /usr/local/bin/distill_fs \
         /usr/local/bin/containerd-shim-kata-v2 \
         /usr/local/bin/akernel-entrypoint \
-        /usr/local/bin/ensure-component-cert
+        /usr/local/bin/ensure-component-cert \
+        /usr/local/bin/sandboxd-network-prepare
 
 COPY ./builder/config/yr_services.yaml ${YR_INSTALLATION_DIR}/deploy/process/services.yaml
 
