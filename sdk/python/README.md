@@ -24,6 +24,7 @@ It supports two backends:
   - [Port forwarding](#port-forwarding)
   - [Reverse tunnels](#reverse-tunnels)
   - [Rootfs and mounts](#rootfs-and-mounts)
+  - [Launch from a Dockerfile](#launch-from-a-dockerfile)
   - [Resources and lifecycle](#resources-and-lifecycle)
   - [CLI](#cli)
   - [Examples and tests](#examples-and-tests)
@@ -101,6 +102,7 @@ Sandbox(
     xpu: str | None = None,
     storage_mb: int | None = None,
     network_policy: NetworkPolicy | None = None,
+    dockerfile: DockerfileLaunch | None = None,
 )
 ```
 
@@ -410,6 +412,31 @@ OCI images can also be mounted read-only:
 mount = Mount(target="/opt/tools", image_url="ubuntu:24.04")
 ```
 
+## Launch from a Dockerfile
+
+Dockerfile direct launch is a supported AKernel SDK capability and will remain
+available. Its documented strict subset evolves incrementally with production
+experience; unsupported inputs continue to fail closed. The specific API surface
+may evolve, with documentation and migration guidance for material changes. It
+is not a general-purpose Docker build.
+
+`FROM` supplies only the root filesystem; inherited OCI configuration is not
+applied. Precheck the context, then pass its launch configuration to `Sandbox`:
+
+```python
+from akernel_sdk import DockerfileLaunch, LocalDockerContext, Sandbox, check_direct_launch
+context = LocalDockerContext("Dockerfile", context_dir=".")
+if check_direct_launch(context).direct_launchable:
+    with Sandbox(dockerfile=DockerfileLaunch(context, run_timeout=300)) as sandbox:
+        pass
+```
+
+`RUN`, `COPY`, and `ADD` run on every launch without a snapshot or cache;
+unsupported Dockerfiles must be built externally. Read the complete contract,
+security boundaries, and supported syntax in
+[the Dockerfile launch guide](./docs/launch-from-dockerfile.md). See the
+[runnable example](./examples/dockerfile_launch.py).
+
 ## Resources and lifecycle
 
 `resources()` returns stable `NodeInfo` values rather than backend objects:
@@ -461,6 +488,7 @@ Maintained examples are under [`examples/`](./examples):
 - `basic_usage.py`
 - `command_stdin.py`
 - `custom_image.py`
+- `dockerfile_launch.py`
 - `gpu_sandbox.py`
 - `named_sandbox.py`
 - `network_policy.py`
@@ -501,3 +529,7 @@ not part of the default test suite.
 | `Mount` | `target`, one source, and `type` |
 | `HttpReverseTunnel` | `target`, `reverse_port`, `listen_port`, `connect_timeout` |
 | `NetworkPolicy` | `block_network`, `dns_blacklist` |
+| `DockerfileLaunch` | `context`, `auto_start_cmd`, `run_timeout` |
+| `DockerContext` | Abstract Dockerfile and build-context source |
+| `DockerContextEntry` | `path`, `kind`, `mode` |
+| `LocalDockerContext` | Local Dockerfile and context implementation |

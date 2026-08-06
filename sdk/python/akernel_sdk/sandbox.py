@@ -26,8 +26,9 @@ from types import MappingProxyType
 from ._addresses import Endpoint, api_endpoint_from_env, gateway_endpoint_from_env
 from ._backends.base import BackendSession, SandboxSpec
 from ._backends.registry import load_backend
+from ._dockerfile_launch import DockerfileLaunch
 from ._sandbox_resources import normalize_xpu, validate_storage_mb
-from .commands import Commands
+from .commands import CommandHandle, Commands
 from .filesystem import Filesystem
 from .pty import Pty
 from .types import HttpReverseTunnel, Mount, NetworkPolicy, S3Config, SandboxInfo
@@ -133,6 +134,7 @@ class Sandbox:
         xpu: str | None = None,
         storage_mb: int | None = None,
         network_policy: NetworkPolicy | None = None,
+        dockerfile: DockerfileLaunch | None = None,
     ) -> None:
         """Create and wait for a sandbox to become ready.
 
@@ -164,6 +166,17 @@ class Sandbox:
                 are validated against the selected runtime by the backend.
             network_policy: Optional creation-time network policy. Omitting it
                 leaves sandbox networking unrestricted.
+            dockerfile: Supported Dockerfile direct-launch configuration.
+                Dockerfile direct launch remains available as a supported
+                capability. Its documented strict subset evolves incrementally
+                with production experience; unsupported inputs fail closed. The
+                specific API surface may evolve, with documentation and migration
+                guidance for material changes. ``FROM`` supplies only the root
+                filesystem; its OCI ENV, USER, WORKDIR, CMD and ENTRYPOINT
+                configuration is not inherited. The sandbox applies only state
+                explicitly declared in this Dockerfile, then executes build-time
+                instructions in-sandbox. Mutually exclusive with ``image`` and
+                ``rootfs``.
 
         Raises:
             TypeError: An argument has an invalid type.
@@ -175,8 +188,14 @@ class Sandbox:
             raise ValueError("image must be a non-empty string")
         if rootfs is not None and not isinstance(rootfs, S3Config):
             raise TypeError("rootfs must be an S3Config")
-        if image is not None and rootfs is not None:
-            raise ValueError("image and rootfs are mutually exclusive")
+        if dockerfile is not None:
+            if not isinstance(dockerfile, DockerfileLaunch):
+                raise TypeError("dockerfile must be a DockerfileLaunch")
+        if sum(value is not None for value in (image, rootfs, dockerfile)) > 1:
+            raise ValueError(
+                "image, rootfs and dockerfile are mutually exclusive: at most one "
+                "may be given"
+            )
         if not isinstance(runtime, str):
             raise TypeError("runtime must be a string")
         runtime = runtime.strip()
@@ -235,7 +254,17 @@ class Sandbox:
                     f"reverse tunnel ports conflict with port_forwardings: {rendered}"
                 )
 
+        parsed_dockerfile = None
+        if dockerfile is not None:
+            from ._dockerfile import parse_dockerfile
+
+            parsed_dockerfile = parse_dockerfile(dockerfile.context, strict=True)
+            image = parsed_dockerfile.base_image
+            if not isinstance(image, str) or not image.strip():
+                raise ValueError("Dockerfile base image must be a non-empty string")
+
         self._session: BackendSession | None = None
+        self._startup_command: CommandHandle | None = None
         self._pty: Pty | None = None
         self._closed = False
         self._terminated = detached
@@ -280,6 +309,17 @@ class Sandbox:
             self._files = Filesystem(self._session.files)
             self._commands = Commands(self._session.commands)
             self._pty = Pty(self._id)
+            if dockerfile is not None and parsed_dockerfile is not None:
+                from ._dockerfile_runner import apply_dockerfile
+
+                apply_result = apply_dockerfile(
+                    self,
+                    parsed_dockerfile,
+                    dockerfile.context,
+                    auto_start_cmd=dockerfile.auto_start_cmd,
+                    run_timeout=dockerfile.run_timeout,
+                )
+                self._startup_command = apply_result.startup_command
         except Exception:
             self._closed = True
             try:
@@ -309,6 +349,19 @@ class Sandbox:
         """Command execution and process management for this sandbox."""
 
         return self._commands
+
+    @property
+    def startup_command(self) -> CommandHandle | None:
+        """Background CMD/ENTRYPOINT handle for a Dockerfile launch, if dispatched.
+
+        The handle is available only when ``DockerfileLaunch.auto_start_cmd``
+        is true and the Dockerfile declares a startup command. It is None for
+        normal image/rootfs launches, disabled startup dispatch, or Dockerfiles
+        without CMD or ENTRYPOINT. Sandbox construction does not guarantee that
+        the process remains running or healthy after dispatch.
+        """
+
+        return self._startup_command
 
     @property
     def pty(self) -> Pty:

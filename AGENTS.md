@@ -30,6 +30,8 @@ tunnels. The project overview and deployment quick start are in
 - `sdk/python/` - AKernel Python SDK and CLI.
 - `sdk/python/akernel_sdk/` - SDK implementation for `Sandbox`, commands,
   filesystem, PTY support, instance plumbing, and CLI helpers.
+- `sdk/python/akernel_sdk/_dockerfile_launch.py` - lightweight public
+  Dockerfile direct-launch configuration, independent of the parser and backend.
 - `sdk/python/examples/` - maintained AKernel SDK examples.
 - `sdk/python/tests/` - maintained AKernel SDK tests.
 - `src/yuanrong/` - pinned openYuanRong mirror checkout, including its
@@ -346,6 +348,25 @@ happens once during import and backend modules are loaded lazily on first use.
 Keep public `Sandbox`, `Commands`, `Filesystem`, and value types independent
 of both native packages; all native conversions belong under
 `akernel_sdk._backends`.
+
+Dockerfile direct launch is a supported AKernel SDK capability through
+`DockerContext` and
+`Sandbox(dockerfile=DockerfileLaunch(context=..., auto_start_cmd=..., run_timeout=...))`.
+The capability will remain available. Its documented strict subset evolves
+incrementally with production experience, while unsupported inputs continue to
+fail closed. The specific API surface may evolve; material changes require
+documentation and migration guidance. Read
+[`sdk/python/docs/launch-from-dockerfile.md`](./sdk/python/docs/launch-from-dockerfile.md)
+before changing this path. `FROM` supplies only the root filesystem; inherited
+OCI configuration is not applied. Runtime availability and compatibility remain
+backend-owned. `DockerContext.walk()` exposes public structured file and
+directory entries, including modes and empty directories; context transfer must
+remain backend-neutral, reject unsafe manifests and unsupported syntax
+fail-closed, and preserve documented Dockerfile-specific ignore-file
+precedence. Dockerfiles and active or root ignore files remain ordinary context
+entries unless the active matcher excludes them. Keep the public types, unit
+tests, SDK README, Dockerfile launch guide, and
+`examples/dockerfile_launch.py` in sync.
 
 When changing a public SDK method, update its type annotations and docstring,
 add or update unit coverage, and keep the SDK README and maintained examples in
