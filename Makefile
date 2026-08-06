@@ -62,13 +62,11 @@ help:
 
 .PHONY: check
 check:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/check-prereqs.sh --vendor "$(VENDOR)"
+	@./deploy/scripts/check-prereqs.sh --vendor "$(VENDOR)"
 
 .PHONY: config
 config:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	args=(--vendor "$(VENDOR)" --env "$(ENV)"); \
+	@args=(--vendor "$(VENDOR)" --env "$(ENV)"); \
 	if [[ "$(FORCE)" == "1" ]]; then args+=(--force); fi; \
 	if [[ "$(NON_INTERACTIVE)" == "1" ]]; then args+=(--non-interactive); fi; \
 	if [[ -n "$(REGION)" ]]; then args+=(--region "$(REGION)"); fi; \
@@ -94,8 +92,7 @@ config:
 
 .PHONY: build
 build:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	args=(--env "$(ENV)"); \
+	@args=(--env "$(ENV)"); \
 	if [[ -n "$(IMAGE_REPOSITORY)" ]]; then args+=(--repository "$(IMAGE_REPOSITORY)"); fi; \
 	if [[ -n "$(IMAGE_TAG)" ]]; then args+=(--tag "$(IMAGE_TAG)"); fi; \
 	if [[ -n "$(GVISOR_RELEASE)" ]]; then args+=(--gvisor-release "$(GVISOR_RELEASE)"); fi; \
@@ -106,28 +103,23 @@ build:
 
 .PHONY: versions
 versions:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/build-image.sh --print-component-versions
+	@./deploy/scripts/build-image.sh --print-component-versions
 
 .PHONY: push
 push:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/push-image.sh --vendor "$(VENDOR)" --env "$(ENV)"
+	@./deploy/scripts/push-image.sh --vendor "$(VENDOR)" --env "$(ENV)"
 
 .PHONY: plan
 plan:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/deploy.sh --vendor "$(VENDOR)" --env "$(ENV)" --plan
+	@./deploy/scripts/deploy.sh --vendor "$(VENDOR)" --env "$(ENV)" --plan
 
 .PHONY: deploy
 deploy:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/deploy.sh --vendor "$(VENDOR)" --env "$(ENV)" --apply
+	@./deploy/scripts/deploy.sh --vendor "$(VENDOR)" --env "$(ENV)" --apply
 
 .PHONY: token
 token:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/generate-token.py \
+	@./deploy/scripts/generate-token.py \
 		--env "$(ENV)" \
 		--tenant "$(TENANT)" \
 		--role "$(ROLE)" \
@@ -137,31 +129,26 @@ token:
 
 .PHONY: print-env
 print-env:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/print-sdk-env.sh --vendor "$(VENDOR)" --env "$(ENV)"
+	@./deploy/scripts/print-sdk-env.sh --vendor "$(VENDOR)" --env "$(ENV)"
 
 .PHONY: e2e
 e2e:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	./deploy/scripts/run-e2e.sh --env "$(ENV)"
+	@./deploy/scripts/run-e2e.sh --env "$(ENV)"
 
 .PHONY: sdk-test
 sdk-test:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY; \
-	PYTHONPATH=sdk/python python3 -m unittest discover \
+	@PYTHONPATH=sdk/python python3 -m unittest discover \
 		-s sdk/python/tests/unit -t sdk/python -v
 
 .PHONY: sdk-check
 sdk-check: sdk-test
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY; \
-	cd sdk/python; \
+	@cd sdk/python; \
 	python3 -m ruff check akernel_sdk tests; \
 	python3 -m mypy akernel_sdk
 
 .PHONY: deploy-script-check
 deploy-script-check:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY no_proxy NO_PROXY; \
-	set -euo pipefail; \
+	@set -euo pipefail; \
 	while IFS= read -r -d '' script; do \
 		bash -n "$$script"; \
 	done < <(git ls-files -z -- 'deploy/**/*.sh'); \
@@ -182,7 +169,6 @@ deploy-script-check:
 
 .PHONY: destroy
 destroy:
-	@unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy; \
-	args=(--vendor "$(VENDOR)" --env "$(ENV)"); \
+	@args=(--vendor "$(VENDOR)" --env "$(ENV)"); \
 	if [[ "$(AUTO_APPROVE)" == "1" ]]; then args+=(--yes); fi; \
 	./deploy/scripts/destroy.sh "$${args[@]}"

@@ -13,7 +13,6 @@
 #   3. Remove Helm/null_resource from Terraform state (already cleaned up above)
 #   4. terraform destroy on remaining infrastructure (VPC, ACK cluster, node pool, etc.)
 set -euo pipefail
-unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy
 
 cd "$(dirname "$0")"
 

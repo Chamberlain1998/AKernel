@@ -371,12 +371,6 @@ python sdk/python/benchmarks/sandbox_pressure.py \
 - When code changes alter source layout, public APIs, build or deployment
   commands, supported platforms, or operational assumptions, update this file
   in the same change so future agents receive current guidance.
-- Do not assume a fixed proxy address. Follow the user's network instructions:
-  public dependency downloads may require the configured proxy, while
-  Docker-local addresses, Pod IPs, private Kubernetes APIs, and cloud-internal
-  endpoints normally require `NO_PROXY` or command-scoped proxy removal. Note
-  that repository Make helpers unset shell proxy variables and Docker builds
-  rely on the Docker daemon or BuildKit proxy configuration.
 - Use Conventional Commits with a concise title and a prose body explaining
   what changed and why; do not create title-only commits. Keep a blank line
   between title and body, wrap the body for terminal readability, and sign
