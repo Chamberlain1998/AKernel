@@ -337,8 +337,8 @@ node:
               "rlimits": [
                   {
                       "type": "RLIMIT_NOFILE",
-                      "hard": 1024,
-                      "soft": 1024
+                      "hard": 65535,
+                      "soft": 65535
                   }
               ]
           },
