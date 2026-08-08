@@ -1,30 +1,42 @@
 # AKernel Python SDK
 
-`akernel-sdk` is the Python interface for creating and managing remote AKernel sandboxes. Applications use one stable API for commands, files, interactive PTYs, port forwarding, and reverse tunnels. The current implementation uses `openYuanrong` as its backend adapter; backend-specific handles and namespaces are not part of the public API.
+`akernel-sdk` is the Python interface for creating and managing remote AKernel
+sandboxes. Applications use one stable API for commands, files, interactive
+PTYs, port forwarding, and reverse tunnels.
+
+It supports two backends:
+
+- `openyuanrong-sandbox` (default), using a RESTful API and Rust runtime.
+- `openyuanrong-sdk` (legacy), using YuanRong actors and a Python runtime.
 
 ## Navigation
 
-- [Install and configure](#install-and-configure)
-- [Create a sandbox](#create-a-sandbox)
-- [Commands](#commands)
-- [Filesystem](#filesystem)
-- [Interactive PTYs](#interactive-ptys)
-- [Port forwarding](#port-forwarding)
-- [Reverse tunnels](#reverse-tunnels)
-- [Rootfs and mounts](#rootfs-and-mounts)
-- [Resources and lifecycle](#resources-and-lifecycle)
-- [CLI](#cli)
-- [Examples and tests](#examples-and-tests)
+- [AKernel Python SDK](#akernel-python-sdk)
+  - [Navigation](#navigation)
+  - [Install and configure](#install-and-configure)
+  - [Create a sandbox](#create-a-sandbox)
+    - [Experimental GPU and writable storage](#experimental-gpu-and-writable-storage)
+  - [Sandbox runtimes](#sandbox-runtimes)
+  - [Commands](#commands)
+  - [Filesystem](#filesystem)
+  - [Interactive PTYs](#interactive-ptys)
+  - [Port forwarding](#port-forwarding)
+  - [Reverse tunnels](#reverse-tunnels)
+  - [Rootfs and mounts](#rootfs-and-mounts)
+  - [Resources and lifecycle](#resources-and-lifecycle)
+  - [CLI](#cli)
+  - [Examples and tests](#examples-and-tests)
+  - [Public value types](#public-value-types)
 
 ## Install and configure
 
-AKernel SDK 0.1.0 requires Python 3.10 or newer.
+AKernel SDK requires Python 3.10 or newer.
 
 ```bash
 pip install akernel-sdk
 ```
 
-To install from a source checkout:
+To install from source:
 
 ```bash
 python -m pip install ./sdk/python
@@ -45,8 +57,13 @@ Address behavior is deterministic:
 - `AKERNEL_GATEWAY_ADDRESS` overrides the port-forwarding and exec gateway for
   standalone or custom topologies. An override without a scheme uses HTTP/WS.
 
-The standalone launcher prints the Traefik container IP to use as
-`AKERNEL_SERVER_ADDRESS`.
+The legacy actor backend is optional. Install and select it before importing
+`akernel_sdk`:
+
+```bash
+pip install "akernel-sdk[openyuanrong-sdk]"
+export AKERNEL_BACKEND=openyuanrong-sdk
+```
 
 ## Create a sandbox
 
@@ -84,8 +101,6 @@ Sandbox(
     storage_mb: int | None = None,
 )
 ```
-
-`cpu` is measured in millicores and `memory` in MiB. A zero CPU or memory limit means the limit follows the corresponding request. A positive limit must not be smaller than its request.
 
 ### Experimental GPU and writable storage
 
@@ -163,7 +178,9 @@ handle.close_stdin()
 result = handle.wait(timeout=15)
 ```
 
-Foreground commands use one actor RPC with the configured timeout. Background commands return a handle whose `wait()` method also performs one actor RPC.
+Foreground commands return a backend-neutral `CommandResult`. Background
+commands return an AKernel `CommandHandle`; its lifecycle operations are
+delegated to the selected backend.
 
 ## Filesystem
 
@@ -264,8 +281,14 @@ the loopback HTTP listener used inside the sandbox. Consequently,
 
 For an HTTPS target, the SDK-side tunnel client performs the TLS handshake and
 certificate verification. The sandbox application talks only to its loopback
-HTTP listener. AKernel 0.1.0 supports one HTTP/WebSocket reverse tunnel per
-sandbox; it does not expose a general TCP tunnel.
+HTTP listener. AKernel supports one HTTP/HTTPS reverse tunnel per sandbox and
+does not expose a general TCP tunnel.
+
+> The default `openyuanrong-sandbox` backend reserves ports `8765` and `8766`
+> inside each sandbox while a reverse tunnel is active. They do not occupy
+> ports on the SDK host, but applications in the same sandbox cannot bind
+> them. The SDK-side target port remains configurable through `target`;
+> custom internal tunnel ports currently require `openyuanrong-sdk`.
 
 ## Rootfs and mounts
 
@@ -397,7 +420,7 @@ not part of the default test suite.
 | `CommandResult` | `stdout`, `stderr`, `exit_code` |
 | `CommandInfo` | `pid`, `command`, `running` |
 | `EntryInfo` | `name`, `path`, `type`, `size`, `permissions`, `modified_time` |
-| `SandboxInfo` | `id`, `state`, `cpu`, `memory`, `image` |
+| `SandboxInfo` | `id`, `state`, `cpu`, `memory`, `image`, `xpu`, `storage_mb` |
 | `NodeInfo` | `id`, `status`, `capacity`, `allocatable`, `labels` |
 | `S3Config` | `endpoint`, `bucket`, `object`, optional credentials |
 | `Mount` | `target`, one source, and `type` |
