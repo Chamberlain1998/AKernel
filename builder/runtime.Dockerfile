@@ -173,7 +173,8 @@ RUN set -eux; \
         "3.14:${PYTHON_314_VERSION}"; do \
         py="${spec%%:*}"; \
         version="${spec#*:}"; \
-        uv venv "/opt/venv-py${py}" --python "${version}" --seed; \
+        UV_DEFAULT_INDEX="${PIP_INDEX_URL}" uv venv \
+            "/opt/venv-py${py}" --python "${version}" --seed; \
         ln -sfn \
             "uv-python/cpython-${version}-linux-x86_64-gnu/bin/python${py}" \
             "/opt/python${py}"; \

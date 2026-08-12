@@ -38,6 +38,7 @@ require_text "${ROOT}/builder/runtime.Dockerfile" 'ELF 64-bit LSB.*x86-64'
 require_text "${ROOT}/builder/runtime.Dockerfile" '--index-url "${PIP_INDEX_URL}"'
 require_text "${ROOT}/builder/runtime.Dockerfile" '--mirror "${UV_PYTHON_INSTALL_MIRROR}"'
 require_text "${ROOT}/builder/runtime.Dockerfile" 'uv python install failed after 3 attempts'
+require_text "${ROOT}/builder/runtime.Dockerfile" 'UV_DEFAULT_INDEX="${PIP_INDEX_URL}" uv venv'
 
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_RUNTIME_PROFILE=rrt'
 require_text "${ROOT}/builder/node.Dockerfile" '.akernel-rrt-capable'
