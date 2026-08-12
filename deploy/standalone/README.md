@@ -203,6 +203,24 @@ variable to test another registry, tag, or locally built image:
 IMAGE="<your-docker-registry>:<your-tag>" ./start.sh
 ```
 
+Images built with `OPEN_YR_RRT_WHEEL_URL` and
+`OPEN_YR_RRT_WHEEL_SHA256` contain the Rust runtime required by sandbox
+pause/resume. Enable the standalone control-plane wiring explicitly:
+
+```bash
+AKERNEL_ENABLE_PAUSE_RESUME=true IMAGE="<rrt-capable-image>" ./start.sh
+```
+
+Startup fails closed when the flag is enabled on an image without the RRT
+capability marker. Checkpoints are stored below
+`data/sandboxd/root/checkpoints`. Run the acceptance test with the exact
+pause/resume SDK wheel after exporting `YR_SERVER_ADDRESS`, `YR_TOKEN`, and
+`YR_TLS=1`:
+
+```bash
+python3 pause_resume_e2e.py --report data/pause-resume-e2e.json
+```
+
 The gateway defaults to `traefik:v3.6.8`. Override it independently when
 needed:
 
