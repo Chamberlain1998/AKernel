@@ -21,6 +21,7 @@ open_yr_core_wheel_url="${OPEN_YR_CORE_WHEEL_URL:-}"
 open_yr_core_wheel_sha256="${OPEN_YR_CORE_WHEEL_SHA256:-}"
 open_yr_rrt_wheel_url="${OPEN_YR_RRT_WHEEL_URL:-}"
 open_yr_rrt_wheel_sha256="${OPEN_YR_RRT_WHEEL_SHA256:-}"
+pip_index_url="${PIP_INDEX_URL:-}"
 print_component_versions=0
 
 component_revision() {
@@ -109,6 +110,10 @@ while [[ $# -gt 0 ]]; do
       open_yr_rrt_wheel_sha256="$2"
       shift 2
       ;;
+    --pip-index-url)
+      pip_index_url="$2"
+      shift 2
+      ;;
     --print-component-versions)
       print_component_versions=1
       shift
@@ -174,6 +179,9 @@ fi
 
 info "building ${runtime_image} with runtime profile ${runtime_profile}"
 runtime_build_args=()
+if [[ -n "${pip_index_url}" ]]; then
+  runtime_build_args+=(--build-arg "PIP_INDEX_URL=${pip_index_url}")
+fi
 if [[ -n "${open_yr_rrt_wheel_url}" ]]; then
   runtime_build_args+=(
     --build-arg "OPEN_YR_RRT_WHEEL_URL=${open_yr_rrt_wheel_url}"

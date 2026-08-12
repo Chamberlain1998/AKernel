@@ -89,6 +89,7 @@ LABEL org.akernel.runtime.profile="rrt"
 FROM rrt-runtime-rootfs AS python-runtime-rootfs
 
 ARG UV_VERSION
+ARG PIP_INDEX_URL
 ARG PYTHON_310_VERSION
 ARG PYTHON_311_VERSION
 ARG PYTHON_312_VERSION
