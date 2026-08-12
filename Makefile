@@ -17,6 +17,7 @@ OPEN_YR_RRT_WHEEL_SHA256 ?=
 PIP_INDEX_URL ?=
 UV_PYTHON_INSTALL_MIRROR ?=
 AKERNEL_INCLUDE_KATA ?= true
+AKERNEL_INCLUDE_NVIDIA ?= true
 TOKEN_TTL ?= $(if $(TTL),$(TTL),24h)
 TENANT ?= default
 ROLE ?= developer
@@ -56,6 +57,7 @@ help:
 	@echo "  make build RUNTIME_PROFILE=python   Include optional Python runtimes"
 	@echo "  make build GVISOR_RELEASE=<tag>     Override the pinned official gVisor tag"
 	@echo "  make build AKERNEL_INCLUDE_KATA=false  Build a runsc-only image"
+	@echo "  make build AKERNEL_INCLUDE_NVIDIA=false  Build without NVIDIA userspace tools"
 	@echo "  make versions                       Show locally selected component versions"
 	@echo "  make push                          Push the configured all-in-one image"
 	@echo "  make plan                          Terraform plan"
@@ -112,6 +114,7 @@ build:
 	if [[ -n "$(PIP_INDEX_URL)" ]]; then args+=(--pip-index-url "$(PIP_INDEX_URL)"); fi; \
 	if [[ -n "$(UV_PYTHON_INSTALL_MIRROR)" ]]; then args+=(--uv-python-install-mirror "$(UV_PYTHON_INSTALL_MIRROR)"); fi; \
 	args+=(--include-kata "$(AKERNEL_INCLUDE_KATA)"); \
+	args+=(--include-nvidia "$(AKERNEL_INCLUDE_NVIDIA)"); \
 	./deploy/scripts/build-image.sh "$${args[@]}"
 
 .PHONY: versions

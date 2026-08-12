@@ -25,6 +25,7 @@ ARG OTELCOL_CONTRIB_URL=https://github.com/open-telemetry/opentelemetry-collecto
 ARG AKERNEL_VERSION=unknown
 ARG AKERNEL_REVISION=unknown
 ARG AKERNEL_INCLUDE_KATA=true
+ARG AKERNEL_INCLUDE_NVIDIA=true
 
 FROM ${KATA_BUILD_IMAGE} AS kata-runtime
 ARG AKERNEL_INCLUDE_KATA
@@ -102,6 +103,7 @@ ARG AKERNEL_RUNTIME_PROFILE
 ARG AKERNEL_VERSION
 ARG AKERNEL_REVISION
 ARG AKERNEL_INCLUDE_KATA
+ARG AKERNEL_INCLUDE_NVIDIA
 ARG OPEN_YR_VERSION
 ARG OPEN_YR_CORE_WHEEL_URL
 ARG OPEN_YR_CORE_WHEEL_SHA256
@@ -141,6 +143,10 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
+    case "${AKERNEL_INCLUDE_NVIDIA}" in true|false) ;; *) exit 1 ;; esac; \
+    if [ "${AKERNEL_INCLUDE_NVIDIA}" = "false" ]; then \
+      exit 0; \
+    fi; \
     curl -fsSL --retry 10 --retry-delay 2 --retry-all-errors \
       https://nvidia.github.io/libnvidia-container/gpgkey \
       | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg; \

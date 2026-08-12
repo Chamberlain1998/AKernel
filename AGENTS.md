@@ -117,6 +117,9 @@ Kata remains included by default. Set `AKERNEL_INCLUDE_KATA=false` only for a
 runsc-only image, such as standalone validation on a host without KVM; this
 skips the large Kata release payload and leaves the optional Kata runtime
 binary absent, so sandboxd does not advertise it.
+NVIDIA userspace tools also remain included by default. Set
+`AKERNEL_INCLUDE_NVIDIA=false` for CPU-only builds when the NVIDIA package
+repository is unavailable; images built this way cannot serve GPU sandboxes.
 
 The build helper performs two Docker builds. `builder/runtime.Dockerfile`
 creates `yr-runtime-rootfs.img`; the default `rrt` profile contains the
