@@ -113,6 +113,10 @@ For a build that will be pushed and deployed, set `IMAGE_REPOSITORY` and
 override on `make build` does not update the profile consumed by `make push`.
 The build creates only the selected image reference; it does not add a second
 `akernel-all-in-one` alias. `make push` pushes that selected reference directly.
+Kata remains included by default. Set `AKERNEL_INCLUDE_KATA=false` only for a
+runsc-only image, such as standalone validation on a host without KVM; this
+skips the large Kata release payload and leaves the optional Kata runtime
+binary absent, so sandboxd does not advertise it.
 
 The build helper performs two Docker builds. `builder/runtime.Dockerfile`
 creates `yr-runtime-rootfs.img`; the default `rrt` profile contains the

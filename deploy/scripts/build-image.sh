@@ -23,6 +23,7 @@ open_yr_rrt_wheel_url="${OPEN_YR_RRT_WHEEL_URL:-}"
 open_yr_rrt_wheel_sha256="${OPEN_YR_RRT_WHEEL_SHA256:-}"
 pip_index_url="${PIP_INDEX_URL:-}"
 uv_python_install_mirror="${UV_PYTHON_INSTALL_MIRROR:-}"
+include_kata="${AKERNEL_INCLUDE_KATA:-true}"
 print_component_versions=0
 
 component_revision() {
@@ -119,6 +120,10 @@ while [[ $# -gt 0 ]]; do
       uv_python_install_mirror="$2"
       shift 2
       ;;
+    --include-kata)
+      include_kata="$2"
+      shift 2
+      ;;
     --print-component-versions)
       print_component_versions=1
       shift
@@ -132,6 +137,10 @@ done
 case "${runtime_profile}" in
   rrt|python) ;;
   *) die "unsupported runtime profile: ${runtime_profile}; expected rrt or python" ;;
+esac
+case "${include_kata}" in
+  true|false) ;;
+  *) die "AKERNEL_INCLUDE_KATA must be true or false" ;;
 esac
 
 require_cmd docker
@@ -211,6 +220,7 @@ node_build_args=(
   --build-arg "AKERNEL_RUNTIME_PROFILE=${runtime_profile}"
   --build-arg "AKERNEL_VERSION=${akernel_version}"
   --build-arg "AKERNEL_REVISION=${akernel_revision}"
+  --build-arg "AKERNEL_INCLUDE_KATA=${include_kata}"
 )
 if [[ -n "${gvisor_release}" ]]; then
   node_build_args+=(--build-arg "GVISOR_RELEASE=${gvisor_release}")

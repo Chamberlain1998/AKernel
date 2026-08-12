@@ -24,13 +24,20 @@ ARG OTELCOL_CONTRIB_VERSION=0.120.0
 ARG OTELCOL_CONTRIB_URL=https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_CONTRIB_VERSION}/otelcol-contrib_${OTELCOL_CONTRIB_VERSION}_linux_amd64.tar.gz
 ARG AKERNEL_VERSION=unknown
 ARG AKERNEL_REVISION=unknown
+ARG AKERNEL_INCLUDE_KATA=true
 
 FROM ${KATA_BUILD_IMAGE} AS kata-runtime
+ARG AKERNEL_INCLUDE_KATA
 ARG KATA_RELEASE
 ARG KATA_AMD64_SHA256
 ARG KATA_RELEASE_BASE_URL
 ARG TARGETARCH
 RUN set -eux; \
+    case "${AKERNEL_INCLUDE_KATA}" in true|false) ;; *) exit 1 ;; esac; \
+    mkdir -p /kata/opt/kata; \
+    if [ "${AKERNEL_INCLUDE_KATA}" = "false" ]; then \
+      exit 0; \
+    fi; \
     test "${TARGETARCH:-amd64}" = "amd64"; \
     apt-get update; \
     apt-get install -y --no-install-recommends ca-certificates curl zstd; \
@@ -94,6 +101,7 @@ FROM ${AKERNEL_NODE_BASE_IMAGE}
 ARG AKERNEL_RUNTIME_PROFILE
 ARG AKERNEL_VERSION
 ARG AKERNEL_REVISION
+ARG AKERNEL_INCLUDE_KATA
 ARG OPEN_YR_VERSION
 ARG OPEN_YR_CORE_WHEEL_URL
 ARG OPEN_YR_CORE_WHEEL_SHA256
@@ -251,7 +259,12 @@ COPY --from=sandboxd-builder /src/sandboxd/output/sbox /usr/local/bin/sbox
 COPY --from=sandboxd-builder /src/sandboxd/output/sandbox-logger /usr/local/bin/sandbox-logger
 COPY --from=distill-fs-builder /src/distill-fs/target/release/distill_fs /usr/local/bin/distill_fs
 COPY --from=kata-runtime /kata/opt/kata /opt/kata
-RUN ln -sf /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2
+RUN set -eux; \
+    case "${AKERNEL_INCLUDE_KATA}" in true|false) ;; *) exit 1 ;; esac; \
+    if [ "${AKERNEL_INCLUDE_KATA}" = "true" ]; then \
+      ln -sf /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 \
+        /usr/local/bin/containerd-shim-kata-v2; \
+    fi
 
 COPY ./builder/scripts/akernel-entrypoint.sh /usr/local/bin/akernel-entrypoint
 COPY ./builder/scripts/ensure-component-cert.sh /usr/local/bin/ensure-component-cert
@@ -262,10 +275,12 @@ RUN chmod 0755 \
         /usr/local/bin/sbox \
         /usr/local/bin/sandbox-logger \
         /usr/local/bin/distill_fs \
-        /usr/local/bin/containerd-shim-kata-v2 \
         /usr/local/bin/akernel-entrypoint \
         /usr/local/bin/ensure-component-cert \
-        /usr/local/bin/sandboxd-network-prepare
+        /usr/local/bin/sandboxd-network-prepare && \
+    if [ "${AKERNEL_INCLUDE_KATA}" = "true" ]; then \
+        chmod 0755 /usr/local/bin/containerd-shim-kata-v2; \
+    fi
 
 COPY ./builder/config/yr_services.yaml /tmp/yr_services_rrt.yaml
 COPY ./builder/config/yr_services_python.yaml /tmp/yr_services_python.yaml

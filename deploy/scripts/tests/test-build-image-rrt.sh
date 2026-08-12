@@ -21,6 +21,8 @@ require_text "${ROOT}/Makefile" 'PIP_INDEX_URL ?='
 require_text "${ROOT}/Makefile" '--pip-index-url'
 require_text "${ROOT}/Makefile" 'UV_PYTHON_INSTALL_MIRROR ?='
 require_text "${ROOT}/Makefile" '--uv-python-install-mirror'
+require_text "${ROOT}/Makefile" 'AKERNEL_INCLUDE_KATA ?= true'
+require_text "${ROOT}/Makefile" '--include-kata'
 
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'OPEN_YR_RRT_WHEEL_URL and OPEN_YR_RRT_WHEEL_SHA256 must be set together'
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'OPEN_YR_RRT_WHEEL_URL=${open_yr_rrt_wheel_url}'
@@ -28,6 +30,7 @@ require_text "${ROOT}/deploy/scripts/build-image.sh" 'OPEN_YR_RRT_WHEEL_SHA256=$
 require_text "${ROOT}/deploy/scripts/build-image.sh" '--target "runtime-${runtime_profile}"'
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'PIP_INDEX_URL=${pip_index_url}'
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'UV_PYTHON_INSTALL_MIRROR=${uv_python_install_mirror}'
+require_text "${ROOT}/deploy/scripts/build-image.sh" 'AKERNEL_INCLUDE_KATA=${include_kata}'
 
 require_text "${ROOT}/builder/runtime.Dockerfile" 'ARG OPEN_YR_RRT_WHEEL_URL='
 require_text "${ROOT}/builder/runtime.Dockerfile" 'openyuanrong_rrt/rrt-runtime'
@@ -38,6 +41,8 @@ require_text "${ROOT}/builder/runtime.Dockerfile" '--mirror "${UV_PYTHON_INSTALL
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_RUNTIME_PROFILE=rrt'
 require_text "${ROOT}/builder/node.Dockerfile" '.akernel-rrt-capable'
 require_text "${ROOT}/builder/node.Dockerfile" 'yr_services_python.yaml'
+require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_KATA=true'
+require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_KATA}" = "false" ]; then'
 
 require_text "${ROOT}/builder/config/yr_services.yaml" 'rrt:'
 require_text "${ROOT}/builder/config/yr_services.yaml" 'runtime: rust'
