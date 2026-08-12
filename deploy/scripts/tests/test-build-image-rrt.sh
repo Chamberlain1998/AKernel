@@ -13,6 +13,15 @@ require_text() {
   fi
 }
 
+reject_text() {
+  local file="$1"
+  local text="$2"
+  if grep -Fq -- "${text}" "${file}"; then
+    echo "unexpected ${text} in ${file}" >&2
+    exit 1
+  fi
+}
+
 require_text "${ROOT}/Makefile" 'OPEN_YR_RRT_WHEEL_URL ?='
 require_text "${ROOT}/Makefile" 'OPEN_YR_RRT_WHEEL_SHA256 ?='
 require_text "${ROOT}/Makefile" '--open-yr-rrt-wheel-url'
@@ -42,15 +51,23 @@ require_text "${ROOT}/builder/runtime.Dockerfile" '--index-url "${PIP_INDEX_URL}
 require_text "${ROOT}/builder/runtime.Dockerfile" '--mirror "${UV_PYTHON_INSTALL_MIRROR}"'
 require_text "${ROOT}/builder/runtime.Dockerfile" 'uv python install failed after 3 attempts'
 require_text "${ROOT}/builder/runtime.Dockerfile" 'UV_DEFAULT_INDEX="${PIP_INDEX_URL}" uv venv'
+if [[ "$(grep -Fc 'ARG PIP_INDEX_URL' "${ROOT}/builder/runtime.Dockerfile")" -ne 1 ]]; then
+  echo "builder/runtime.Dockerfile must declare PIP_INDEX_URL once in python-runtime-rootfs" >&2
+  exit 1
+fi
 
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_RUNTIME_PROFILE=rrt'
 require_text "${ROOT}/builder/node.Dockerfile" '.akernel-rrt-capable'
+reject_text "${ROOT}/builder/node.Dockerfile" 'AKERNEL_ENABLE_RRT_RUNTIME'
+reject_text "${ROOT}/builder/node.Dockerfile" 'rrt) services=/tmp/yr_services_rrt.yaml; touch'
+require_text "${ROOT}/builder/node.Dockerfile" 'if [ -n "${OPEN_YR_CORE_WHEEL_SHA256}" ]; then'
 require_text "${ROOT}/builder/node.Dockerfile" 'yr_services_python.yaml'
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_KATA=true'
 require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_KATA}" = "false" ]; then'
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_NVIDIA=true'
 require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_NVIDIA}" = "false" ]; then'
 require_text "${ROOT}/builder/node.Dockerfile" '        patch \'
+require_text "${ROOT}/builder/node.Dockerfile" 'openyuanrong-core-454473b64447-pause-resume-process.patch'
 
 require_text "${ROOT}/builder/config/yr_services.yaml" 'rrt:'
 require_text "${ROOT}/builder/config/yr_services.yaml" 'runtime: rust'

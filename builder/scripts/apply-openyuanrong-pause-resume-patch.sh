@@ -4,14 +4,20 @@ set -euo pipefail
 
 yr_root="${1:?usage: $0 YR_ROOT CORE_SHA256}"
 core_sha="${2:?usage: $0 YR_ROOT CORE_SHA256}"
-expected_sha="39ba1cf8323ac4e784117867ecd806ec392da05aa2fd87130f8830eb56310895"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-patch_file="${script_dir}/../patches/openyuanrong-core-6dfa49681774-pause-resume-process.patch"
 
-if [[ "${core_sha}" != "${expected_sha}" ]]; then
-  echo "pause/resume process patch only supports openYuanRong core ${expected_sha}" >&2
-  exit 1
-fi
+case "${core_sha}" in
+  39ba1cf8323ac4e784117867ecd806ec392da05aa2fd87130f8830eb56310895)
+    patch_file="${script_dir}/../patches/openyuanrong-core-6dfa49681774-pause-resume-process.patch"
+    ;;
+  60d8af4fa5d46fae315461574f9f6653694e7327137f4bc9979633d31e5c6811)
+    patch_file="${script_dir}/../patches/openyuanrong-core-454473b64447-pause-resume-process.patch"
+    ;;
+  *)
+    echo "pause/resume process patch does not support openYuanRong core ${core_sha}" >&2
+    exit 1
+    ;;
+esac
 
 for relative in deploy/process/config.sh functionsystem/deploy/install.sh; do
   [[ -f "${yr_root}/${relative}" ]] || {

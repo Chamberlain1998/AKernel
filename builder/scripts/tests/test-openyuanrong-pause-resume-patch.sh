@@ -3,8 +3,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-CORE_URL='https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/daily/20260811190323/linux/amd64/openyuanrong_core-0.7.0%2B6dfa49681774-py3-none-manylinux_2_31_x86_64.whl'
-CORE_SHA='39ba1cf8323ac4e784117867ecd806ec392da05aa2fd87130f8830eb56310895'
+CORE_URL='https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/daily/20260812055037/linux/amd64/openyuanrong_core-0.7.0%2B454473b64447-py3-none-manylinux_2_31_x86_64.whl'
+CORE_SHA='60d8af4fa5d46fae315461574f9f6653694e7327137f4bc9979633d31e5c6811'
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
@@ -38,12 +38,14 @@ install="${TMP}/root/yr/functionsystem/deploy/install.sh"
 grep -Fq 'enable_sandbox_pause_resume:' "${config}"
 grep -Fq 'snapshot_storage_backend:' "${config}"
 grep -Fq 'checkpoint_dir:' "${config}"
+grep -Fq 'data_system_enable:' "${config}"
 grep -Fq -- '--enable_sandbox_pause_resume)' "${config}"
 grep -Fq -- '--snapshot_storage_backend)' "${config}"
 grep -Fq -- '--checkpoint_dir)' "${config}"
 grep -Fq 'export ENABLE_SANDBOX_PAUSE_RESUME SNAPSHOT_STORAGE_BACKEND CHECKPOINT_DIR' "${config}"
 
 grep -Fq 'CHECKPOINT_DIR' "${install}"
+grep -Fq -- '--data_system_enable="${DATA_SYSTEM_ENABLE:-false}"' "${install}"
 grep -Fq -- '--enable_sandbox_pause_resume="${ENABLE_SANDBOX_PAUSE_RESUME}"' "${install}"
 grep -Fq -- '--snapshot_storage_backend="${SNAPSHOT_STORAGE_BACKEND}"' "${install}"
 grep -Fq -- '--checkpoint_dir="${checkpoint_dir}"' "${install}"

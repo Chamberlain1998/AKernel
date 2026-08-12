@@ -62,6 +62,7 @@ case "${AKERNEL_ENABLE_PAUSE_RESUME:-false}" in
         pause_resume_args=(
             --enable_sandbox_pause_resume true
             --snapshot_storage_backend datasystem
+            --data_system_enable true
             --checkpoint_dir "${checkpoint_dir}"
         )
         ;;

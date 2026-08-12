@@ -251,10 +251,11 @@ RUN set -eux; \
     ln -sfn "${YR_INSTALLATION_DIR}/functionsystem/bin/yr" /usr/bin/yr
 
 COPY ./builder/patches/openyuanrong-core-6dfa49681774-pause-resume-process.patch /usr/local/patches/
+COPY ./builder/patches/openyuanrong-core-454473b64447-pause-resume-process.patch /usr/local/patches/
 COPY ./builder/scripts/apply-openyuanrong-pause-resume-patch.sh /usr/local/bin/
 RUN set -eux; \
     chmod 0755 /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh; \
-    if [ "${AKERNEL_ENABLE_RRT_RUNTIME}" = "true" ]; then \
+    if [ -n "${OPEN_YR_CORE_WHEEL_SHA256}" ]; then \
       /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh \
         "${YR_INSTALLATION_DIR}" "${OPEN_YR_CORE_WHEEL_SHA256}"; \
     fi
@@ -293,10 +294,11 @@ COPY ./builder/config/yr_services.yaml /tmp/yr_services_rrt.yaml
 COPY ./builder/config/yr_services_python.yaml /tmp/yr_services_python.yaml
 RUN set -eux; \
     case "${AKERNEL_RUNTIME_PROFILE}" in \
-      rrt) services=/tmp/yr_services_rrt.yaml; touch ${YR_INSTALLATION_DIR}/.akernel-rrt-capable ;; \
+      rrt) services=/tmp/yr_services_rrt.yaml ;; \
       python) services=/tmp/yr_services_python.yaml ;; \
       *) echo "unsupported AKERNEL_RUNTIME_PROFILE: ${AKERNEL_RUNTIME_PROFILE}" >&2; exit 1 ;; \
     esac; \
+    touch ${YR_INSTALLATION_DIR}/.akernel-rrt-capable; \
     install -D -m 0644 "${services}" ${YR_INSTALLATION_DIR}/deploy/process/services.yaml; \
     rm -f /tmp/yr_services_rrt.yaml /tmp/yr_services_python.yaml
 
