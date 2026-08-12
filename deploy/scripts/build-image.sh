@@ -22,6 +22,7 @@ open_yr_core_wheel_sha256="${OPEN_YR_CORE_WHEEL_SHA256:-}"
 open_yr_rrt_wheel_url="${OPEN_YR_RRT_WHEEL_URL:-}"
 open_yr_rrt_wheel_sha256="${OPEN_YR_RRT_WHEEL_SHA256:-}"
 pip_index_url="${PIP_INDEX_URL:-}"
+uv_python_install_mirror="${UV_PYTHON_INSTALL_MIRROR:-}"
 print_component_versions=0
 
 component_revision() {
@@ -114,6 +115,10 @@ while [[ $# -gt 0 ]]; do
       pip_index_url="$2"
       shift 2
       ;;
+    --uv-python-install-mirror)
+      uv_python_install_mirror="$2"
+      shift 2
+      ;;
     --print-component-versions)
       print_component_versions=1
       shift
@@ -181,6 +186,11 @@ info "building ${runtime_image} with runtime profile ${runtime_profile}"
 runtime_build_args=()
 if [[ -n "${pip_index_url}" ]]; then
   runtime_build_args+=(--build-arg "PIP_INDEX_URL=${pip_index_url}")
+fi
+if [[ -n "${uv_python_install_mirror}" ]]; then
+  runtime_build_args+=(
+    --build-arg "UV_PYTHON_INSTALL_MIRROR=${uv_python_install_mirror}"
+  )
 fi
 if [[ -n "${open_yr_rrt_wheel_url}" ]]; then
   runtime_build_args+=(

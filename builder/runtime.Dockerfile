@@ -131,12 +131,24 @@ RUN python3 -m pip install \
         --retries 10 \
         "uv==${UV_VERSION}"
 
-RUN uv python install \
+ARG UV_PYTHON_INSTALL_MIRROR=
+RUN set -eux; \
+    if [ -n "${UV_PYTHON_INSTALL_MIRROR}" ]; then \
+      uv python install \
+        --mirror "${UV_PYTHON_INSTALL_MIRROR}" \
         "${PYTHON_310_VERSION}" \
         "${PYTHON_311_VERSION}" \
         "${PYTHON_312_VERSION}" \
         "${PYTHON_313_VERSION}" \
         "${PYTHON_314_VERSION}"; \
+    else \
+      uv python install \
+        "${PYTHON_310_VERSION}" \
+        "${PYTHON_311_VERSION}" \
+        "${PYTHON_312_VERSION}" \
+        "${PYTHON_313_VERSION}" \
+        "${PYTHON_314_VERSION}"; \
+    fi; \
     rm -rf "${UV_CACHE_DIR}"
 
 RUN set -eux; \
