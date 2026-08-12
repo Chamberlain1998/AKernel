@@ -133,22 +133,35 @@ RUN python3 -m pip install \
 
 ARG UV_PYTHON_INSTALL_MIRROR=
 RUN set -eux; \
-    if [ -n "${UV_PYTHON_INSTALL_MIRROR}" ]; then \
-      uv python install \
-        --mirror "${UV_PYTHON_INSTALL_MIRROR}" \
-        "${PYTHON_310_VERSION}" \
-        "${PYTHON_311_VERSION}" \
-        "${PYTHON_312_VERSION}" \
-        "${PYTHON_313_VERSION}" \
-        "${PYTHON_314_VERSION}"; \
-    else \
-      uv python install \
-        "${PYTHON_310_VERSION}" \
-        "${PYTHON_311_VERSION}" \
-        "${PYTHON_312_VERSION}" \
-        "${PYTHON_313_VERSION}" \
-        "${PYTHON_314_VERSION}"; \
-    fi; \
+    attempt=1; \
+    while true; do \
+      if [ -n "${UV_PYTHON_INSTALL_MIRROR}" ]; then \
+        if uv python install \
+          --mirror "${UV_PYTHON_INSTALL_MIRROR}" \
+          "${PYTHON_310_VERSION}" \
+          "${PYTHON_311_VERSION}" \
+          "${PYTHON_312_VERSION}" \
+          "${PYTHON_313_VERSION}" \
+          "${PYTHON_314_VERSION}"; then \
+          break; \
+        fi; \
+      else \
+        if uv python install \
+          "${PYTHON_310_VERSION}" \
+          "${PYTHON_311_VERSION}" \
+          "${PYTHON_312_VERSION}" \
+          "${PYTHON_313_VERSION}" \
+          "${PYTHON_314_VERSION}"; then \
+          break; \
+        fi; \
+      fi; \
+      if [ "${attempt}" -ge 3 ]; then \
+        echo "uv python install failed after 3 attempts" >&2; \
+        exit 1; \
+      fi; \
+      sleep $((attempt * 5)); \
+      attempt=$((attempt + 1)); \
+    done; \
     rm -rf "${UV_CACHE_DIR}"
 
 RUN set -eux; \
