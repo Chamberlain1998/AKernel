@@ -78,8 +78,8 @@ artifact 构建并启动 AKernel，然后从 Sandbox SDK 发起 pause/resume，�
 
 ### 约束与注意事项
 
-- 最终 runsc checkpoint/restore 只能在 privileged Linux x86_64 环境验证；macOS 只做
-  builder、wheel 和镜像静态检查。
+- 镜像构建和 runsc checkpoint/restore 只能在 privileged Linux x86_64 环境验证；
+  macOS 只检查源码、builder 脚本、wheel、checksum 和 ELF header。
 - RRT wheel 是 Python ABI 无关的原生二进制载体，不属于 cp310/cp311/cp312/cp313 SDK
   wheel 集合。
 - #215 先用于 bring-up；若命中其后的 FunctionSystem teardown 修复，必须整组重建，
@@ -114,6 +114,10 @@ artifact 构建并启动 AKernel，然后从 Sandbox SDK 发起 pause/resume，�
 - Frontend `d00ba4b7f9036a299d35850b0a299c8777996afb`
 - FunctionSystem `6fac483a20edabb21d0f1e48789d02ec11c7c9bc`
 - Sandbox SDK `9176fcfdd11bff4c7c59d408bf7602f6db05c1d7`
+
+#215 的 job 是 `Build X86`、`Build RRT amd64` 和 `Build Runtime amd64 cp311`，没有
+RRT arm64 或 ARM runtime job。本设计的目标平台因此明确限定为原生 Linux x86_64；不把
+Apple Silicon 上的 Docker/QEMU 模拟结果作为镜像构建或 E2E 通过证据。
 
 RRT wheel 已验证为 `py3-none-manylinux_2_31_x86_64`，内部仅携带 Python 辅助模块和
 原生 `rrt-runtime`。它不使用 CPython ABI，因此不需要为 cp310、cp312、cp313 分别
@@ -378,11 +382,13 @@ self-await 修复。首轮以 #215 进行 bring-up，若 E2E 在 pause/resume te
 重新运行整组 Buildkite artifact，保持 Frontend、FunctionSystem、RRT、Sandbox SDK
 版本一致后重测。
 
-#### macOS 不能完成最终 runsc 验证
+#### arm64 macOS 只承担非执行型验证
 
-本地 macOS 可完成代码、脚本、wheel 和 Docker layer 静态验证，但 runsc checkpoint/restore
-最终必须在 Linux x86_64、privileged Docker、内核能力满足的服务器执行。设计和 runner
-应把本地可验证阶段与服务器 E2E 阶段分开报告。
+当前本机是 Darwin arm64，而 #215 的 core/RRT 原生载荷是 Linux x86_64。本机只完成
+源码、脚本、wheel 内容、checksum、ELF header、patch context 和测试代码验证；不直接
+执行 `rrt-runtime`，也不把 `docker buildx --platform linux/amd64` 的 QEMU 模拟构建作为
+正式镜像证据。all-in-one 的 `make build`、镜像启动和 runsc checkpoint/restore 必须在
+Linux x86_64、privileged Docker、内核能力满足的服务器完成，并与本机验证分开报告。
 
 #### compatibility patch 生命周期
 
