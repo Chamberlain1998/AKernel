@@ -50,6 +50,7 @@ require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_KATA=true'
 require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_KATA}" = "false" ]; then'
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_NVIDIA=true'
 require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_NVIDIA}" = "false" ]; then'
+require_text "${ROOT}/builder/node.Dockerfile" '        patch \'
 
 require_text "${ROOT}/builder/config/yr_services.yaml" 'rrt:'
 require_text "${ROOT}/builder/config/yr_services.yaml" 'runtime: rust'

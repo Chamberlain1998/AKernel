@@ -133,6 +133,7 @@ RUN apt-get update && \
         logrotate \
         mount \
         openssl \
+        patch \
         procps \
         python3 \
         python3-pip \
