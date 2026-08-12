@@ -235,6 +235,15 @@ RUN set -eux; \
     rm -rf "${target}" "${wheel}"; \
     ln -sfn "${YR_INSTALLATION_DIR}/functionsystem/bin/yr" /usr/bin/yr
 
+COPY ./builder/patches/openyuanrong-core-6dfa49681774-pause-resume-process.patch /usr/local/patches/
+COPY ./builder/scripts/apply-openyuanrong-pause-resume-patch.sh /usr/local/bin/
+RUN set -eux; \
+    chmod 0755 /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh; \
+    if [ "${AKERNEL_ENABLE_RRT_RUNTIME}" = "true" ]; then \
+      /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh \
+        "${YR_INSTALLATION_DIR}" "${OPEN_YR_CORE_WHEEL_SHA256}"; \
+    fi
+
 COPY --from=runtime-image /yr-runtime-rootfs.img ${YR_INSTALLATION_DIR}/yr-runtime-rootfs.img
 
 COPY --from=sandboxd-builder /src/sandboxd/output/sandboxd /usr/local/bin/sandboxd
