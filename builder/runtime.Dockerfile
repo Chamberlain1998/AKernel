@@ -10,22 +10,41 @@ ARG PYTHON_312_VERSION=3.12.11
 ARG PYTHON_313_VERSION=3.13.5
 ARG PYTHON_314_VERSION=3.14.6
 ARG OPEN_YR_VERSION=0.9.7
+ARG OPEN_YR_RRT_WHEEL_URL=
+ARG OPEN_YR_RRT_WHEEL_SHA256=
 
 FROM ${AKERNEL_RUNTIME_BASE_IMAGE} AS rrt-download
 
 ARG OPEN_YR_VERSION
 ARG RRT_RUNTIME_URL=https://github.com/openYuanrong-mirror/yuanrong/releases/download/${OPEN_YR_VERSION}/rrt-runtime-amd64
 ARG RRT_RUNTIME_SHA256=c7f7441ed631de564f56c1878b84598a7364ffae040a0e51f6e14a82f6ae31d5
+ARG OPEN_YR_RRT_WHEEL_URL
+ARG OPEN_YR_RRT_WHEEL_SHA256
+ARG TARGETARCH
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates curl && \
+    apt-get install -y --no-install-recommends ca-certificates curl file unzip && \
     rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
-    curl -fSL --retry 5 --retry-delay 2 --retry-all-errors \
-        -o /rrt-runtime "${RRT_RUNTIME_URL}"; \
-    echo "${RRT_RUNTIME_SHA256}  /rrt-runtime" | sha256sum -c -; \
-    chmod 0755 /rrt-runtime
+    case "${TARGETARCH:-amd64}" in amd64) ;; *) echo "RRT runtime only supports amd64" >&2; exit 1 ;; esac; \
+    if [ -n "${OPEN_YR_RRT_WHEEL_URL}" ] || [ -n "${OPEN_YR_RRT_WHEEL_SHA256}" ]; then \
+        test -n "${OPEN_YR_RRT_WHEEL_URL}"; \
+        test -n "${OPEN_YR_RRT_WHEEL_SHA256}"; \
+        wheel=/tmp/openyuanrong-rrt.whl; \
+        curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
+            -o "${wheel}" "${OPEN_YR_RRT_WHEEL_URL}"; \
+        actual_sha256="$(sha256sum "${wheel}" | cut -d' ' -f1)"; \
+        test "${actual_sha256}" = "${OPEN_YR_RRT_WHEEL_SHA256}"; \
+        unzip -p "${wheel}" openyuanrong_rrt/rrt-runtime > /rrt-runtime; \
+        rm -f "${wheel}"; \
+    else \
+        curl -fSL --retry 5 --retry-delay 2 --retry-all-errors \
+            -o /rrt-runtime "${RRT_RUNTIME_URL}"; \
+        echo "${RRT_RUNTIME_SHA256}  /rrt-runtime" | sha256sum -c -; \
+    fi; \
+    chmod 0755 /rrt-runtime; \
+    file /rrt-runtime | grep -Eq 'ELF 64-bit LSB.*x86-64'
 
 FROM ${AKERNEL_RUNTIME_BASE_IMAGE} AS rrt-runtime-rootfs
 

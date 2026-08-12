@@ -262,7 +262,7 @@ COPY ./builder/config/yr_services.yaml /tmp/yr_services_rrt.yaml
 COPY ./builder/config/yr_services_python.yaml /tmp/yr_services_python.yaml
 RUN set -eux; \
     case "${AKERNEL_RUNTIME_PROFILE}" in \
-      rrt) services=/tmp/yr_services_rrt.yaml ;; \
+      rrt) services=/tmp/yr_services_rrt.yaml; touch ${YR_INSTALLATION_DIR}/.akernel-rrt-capable ;; \
       python) services=/tmp/yr_services_python.yaml ;; \
       *) echo "unsupported AKERNEL_RUNTIME_PROFILE: ${AKERNEL_RUNTIME_PROFILE}" >&2; exit 1 ;; \
     esac; \

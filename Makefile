@@ -12,6 +12,8 @@ GVISOR_RELEASE ?=
 GVISOR_RELEASE_BASE_URL ?=
 OPEN_YR_CORE_WHEEL_URL ?=
 OPEN_YR_CORE_WHEEL_SHA256 ?=
+OPEN_YR_RRT_WHEEL_URL ?=
+OPEN_YR_RRT_WHEEL_SHA256 ?=
 TOKEN_TTL ?= $(if $(TTL),$(TTL),24h)
 TENANT ?= default
 ROLE ?= developer
@@ -101,6 +103,8 @@ build:
 	if [[ -n "$(GVISOR_RELEASE_BASE_URL)" ]]; then args+=(--gvisor-release-base-url "$(GVISOR_RELEASE_BASE_URL)"); fi; \
 	if [[ -n "$(OPEN_YR_CORE_WHEEL_URL)" ]]; then args+=(--open-yr-core-wheel-url "$(OPEN_YR_CORE_WHEEL_URL)"); fi; \
 	if [[ -n "$(OPEN_YR_CORE_WHEEL_SHA256)" ]]; then args+=(--open-yr-core-wheel-sha256 "$(OPEN_YR_CORE_WHEEL_SHA256)"); fi; \
+	if [[ -n "$(OPEN_YR_RRT_WHEEL_URL)" ]]; then args+=(--open-yr-rrt-wheel-url "$(OPEN_YR_RRT_WHEEL_URL)"); fi; \
+	if [[ -n "$(OPEN_YR_RRT_WHEEL_SHA256)" ]]; then args+=(--open-yr-rrt-wheel-sha256 "$(OPEN_YR_RRT_WHEEL_SHA256)"); fi; \
 	./deploy/scripts/build-image.sh "$${args[@]}"
 
 .PHONY: versions
