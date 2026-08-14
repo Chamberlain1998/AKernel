@@ -27,8 +27,11 @@ download artifacts. The image build job mounts it read-write at
 `/var/cache/akernel-downloads`; checkout, YuanRong resolution, and deployment
 packaging jobs do not mount it. A 10 GiB or larger `ReadWriteOnce` claim is
 sufficient for the first dependency and leaves room for later checksum-pinned
-archives. The actual storage class is selected from the existing Guiyang
-Buildkite cluster rather than introduced by the repository.
+archives. The Guiyang Buildkite cluster has no default StorageClass, so the
+claim explicitly selects its existing `csi-local-topology` class. That class
+uses `WaitForFirstConsumer`, allowing the scheduler to co-locate the local
+volume and the amd64 image job instead of binding storage to an arbitrary node
+before the job exists.
 
 Cache paths include every identity dimension:
 

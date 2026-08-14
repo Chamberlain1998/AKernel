@@ -15,6 +15,9 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 GENERATOR = ROOT / ".buildkite" / "pipeline.sh"
 BOOTSTRAP = ROOT / ".buildkite" / "pipeline.yml"
+CACHE_PVC = (
+    ROOT / ".buildkite" / "kubernetes" / "akernel-dependency-cache-pvc.yaml"
+)
 
 
 class PipelineTest(unittest.TestCase):
@@ -271,6 +274,17 @@ class PipelineTest(unittest.TestCase):
         self.assertIn('test "$$denied" = "403"', step["command"])
         self.assertEqual(step["agents"]["queue"], "default")
         self.assertEqual(step["agents"]["arch"], "amd64")
+
+    def test_dependency_cache_uses_topology_aware_local_storage(self):
+        claim = yaml.safe_load(CACHE_PVC.read_text(encoding="utf-8"))
+
+        self.assertEqual(claim["kind"], "PersistentVolumeClaim")
+        self.assertNotIn("namespace", claim["metadata"])
+        self.assertEqual(claim["spec"]["storageClassName"], "csi-local-topology")
+        self.assertEqual(claim["spec"]["accessModes"], ["ReadWriteOnce"])
+        self.assertEqual(
+            claim["spec"]["resources"]["requests"]["storage"], "10Gi"
+        )
 
 
 if __name__ == "__main__":

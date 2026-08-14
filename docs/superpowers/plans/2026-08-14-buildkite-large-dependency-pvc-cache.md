@@ -227,9 +227,13 @@ Add only to the image PodSpec:
 
 Mount it only into `container-0`; do not add it to `extraVolumeMounts`, which would expose it to checkout.
 
-- [ ] **Step 4: Add manifest and documentation**
+- [x] **Step 4: Add manifest and documentation**
 
-Create a namespace-neutral 10 GiB `ReadWriteOnce` PVC manifest without `storageClassName`, so the existing Guiyang cluster default applies. Document that cache entries are disposable and every hit is verified.
+Create a namespace-neutral 10 GiB `ReadWriteOnce` PVC manifest. Cluster
+inspection found that Guiyang has no default StorageClass, so select the
+existing `csi-local-topology` class explicitly; its `WaitForFirstConsumer`
+mode co-locates the local volume with the image job. Document that cache
+entries are disposable and every hit is verified.
 
 - [ ] **Step 5: Run GREEN checks**
 

@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: akernel-dependency-cache
 spec:
+  storageClassName: csi-local-topology
   accessModes:
     - ReadWriteOnce
   resources:
