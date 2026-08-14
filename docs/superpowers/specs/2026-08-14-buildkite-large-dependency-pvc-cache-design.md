@@ -27,11 +27,15 @@ download artifacts. The image build job mounts it read-write at
 `/var/cache/akernel-downloads`; checkout, YuanRong resolution, and deployment
 packaging jobs do not mount it. A 10 GiB or larger `ReadWriteOnce` claim is
 sufficient for the first dependency and leaves room for later checksum-pinned
-archives. The Guiyang Buildkite cluster has no default StorageClass, so the
-claim explicitly selects its existing `csi-local-topology` class. That class
-uses `WaitForFirstConsumer`, allowing the scheduler to co-locate the local
-volume and the amd64 image job instead of binding storage to an arbitrary node
-before the job exists.
+archives. The Guiyang Buildkite cluster has no default StorageClass, and its
+Everest `csi-local-topology` class cannot provision on the amd64 builders
+because those nodes have no `persistent` local-volume pool. The infrastructure
+manifest therefore defines a static local PV backed by
+`/mnt/paas/build-cache/akernel-dependency-cache` on the selected amd64 builder,
+plus a `kubernetes.io/no-provisioner` StorageClass using
+`WaitForFirstConsumer`. Node affinity co-locates the image job with that path.
+The PV and StorageClass use `Retain`, so claim deletion cannot delete cached
+files from the host.
 
 Cache paths include every identity dimension:
 

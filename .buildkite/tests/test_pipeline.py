@@ -276,11 +276,37 @@ class PipelineTest(unittest.TestCase):
         self.assertEqual(step["agents"]["arch"], "amd64")
 
     def test_dependency_cache_uses_topology_aware_local_storage(self):
-        claim = yaml.safe_load(CACHE_PVC.read_text(encoding="utf-8"))
+        resources = {
+            resource["kind"]: resource
+            for resource in yaml.safe_load_all(CACHE_PVC.read_text(encoding="utf-8"))
+        }
+        self.assertEqual(
+            set(resources), {"StorageClass", "PersistentVolume", "PersistentVolumeClaim"}
+        )
 
-        self.assertEqual(claim["kind"], "PersistentVolumeClaim")
+        storage_class = resources["StorageClass"]
+        self.assertEqual(storage_class["metadata"]["name"], "akernel-local-cache")
+        self.assertEqual(storage_class["provisioner"], "kubernetes.io/no-provisioner")
+        self.assertEqual(storage_class["volumeBindingMode"], "WaitForFirstConsumer")
+        self.assertEqual(storage_class["reclaimPolicy"], "Retain")
+
+        volume = resources["PersistentVolume"]
+        self.assertEqual(volume["spec"]["storageClassName"], "akernel-local-cache")
+        self.assertEqual(volume["spec"]["persistentVolumeReclaimPolicy"], "Retain")
+        self.assertEqual(
+            volume["spec"]["local"]["path"],
+            "/mnt/paas/build-cache/akernel-dependency-cache",
+        )
+        self.assertEqual(
+            volume["spec"]["nodeAffinity"]["required"]["nodeSelectorTerms"][0][
+                "matchExpressions"
+            ][0]["values"],
+            ["10.10.189.4"],
+        )
+
+        claim = resources["PersistentVolumeClaim"]
         self.assertNotIn("namespace", claim["metadata"])
-        self.assertEqual(claim["spec"]["storageClassName"], "csi-local-topology")
+        self.assertEqual(claim["spec"]["storageClassName"], "akernel-local-cache")
         self.assertEqual(claim["spec"]["accessModes"], ["ReadWriteOnce"])
         self.assertEqual(
             claim["spec"]["resources"]["requests"]["storage"], "10Gi"

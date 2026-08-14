@@ -55,16 +55,20 @@ stored in this repository or uploaded as an artifact.
 
 ## Large dependency cache
 
-Apply `.buildkite/kubernetes/akernel-dependency-cache-pvc.yaml` once in the
-Buildkite job namespace before running the pipeline. The claim explicitly uses
-the Huawei CCE `csi-local-topology` storage class: its
-`WaitForFirstConsumer` binding keeps the local volume on the node selected for
-the image job instead of pre-binding it to an unrelated node. The class must
-provide at least a 10 GiB `ReadWriteOnce` volume. The claim is mounted
-read-write at `/var/cache/akernel-downloads` only in the image command
-container; checkout, YuanRong resolution, and deployment packaging do not
-mount it. `/var/lib/docker` remains a per-job `emptyDir` and is never shared
-between Docker daemons.
+Create `/mnt/paas/build-cache/akernel-dependency-cache` on the selected amd64
+Buildkite node, then apply
+`.buildkite/kubernetes/akernel-dependency-cache-pvc.yaml` once in the Buildkite
+job namespace before running the pipeline. The manifest defines a static
+10 GiB local PV on node `10.10.189.4`, a `kubernetes.io/no-provisioner`
+StorageClass with `WaitForFirstConsumer`, and the `ReadWriteOnce` claim. The
+volume and class both use `Retain`, so deleting the claim cannot delete the
+host cache directory. If the cache node is replaced, update the PV node
+affinity and create the directory on its replacement before recreating the PV.
+
+The claim is mounted read-write at `/var/cache/akernel-downloads` only in the
+image command container; checkout, YuanRong resolution, and deployment
+packaging do not mount it. `/var/lib/docker` remains a per-job `emptyDir` and
+is never shared between Docker daemons.
 
 The first cached asset is the checksum-pinned Kata Containers 4.0.0 amd64
 static archive. Cache paths include component, version, architecture, digest,
