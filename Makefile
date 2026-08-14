@@ -9,7 +9,11 @@ ENV ?= default
 IMAGE_TAG ?=
 IMAGE_REPOSITORY ?=
 GVISOR_RELEASE ?=
+GVISOR_AMD64_SHA512 ?=
 GVISOR_RELEASE_BASE_URL ?=
+OTELCOL_CONTRIB_VERSION ?=
+OTELCOL_CONTRIB_SHA256 ?=
+OTELCOL_CONTRIB_URL ?=
 OPEN_YR_VERSION ?=
 OPEN_YR_CORE_WHEEL_URL ?=
 OPEN_YR_CORE_WHEEL_SHA256 ?=
@@ -60,6 +64,9 @@ help:
 	@echo "  make build RUNTIME_PROFILE=python   Include optional Python runtimes"
 	@echo "  make build OPEN_YR_VERSION=<version>  Select a YuanRong release version"
 	@echo "  make build GVISOR_RELEASE=<tag>     Override the pinned official gVisor tag"
+	@echo "             GVISOR_AMD64_SHA512=<sha512>  gVisor version and digest must be overridden together"
+	@echo "  make build OTELCOL_CONTRIB_VERSION=<version> OTELCOL_CONTRIB_SHA256=<sha256>"
+	@echo "                                           OTel version and digest must be overridden together"
 	@echo "  make build AKERNEL_INCLUDE_KATA=false  Build a runsc-only image"
 	@echo "  make build AKERNEL_INCLUDE_NVIDIA=false  Build without NVIDIA userspace tools"
 	@echo "  make versions                       Show locally selected component versions"
@@ -111,7 +118,11 @@ build:
 	if [[ -n "$(IMAGE_TAG)" ]]; then args+=(--tag "$(IMAGE_TAG)"); fi; \
 	if [[ -n "$(RUNTIME_PROFILE)" ]]; then args+=(--runtime-profile "$(RUNTIME_PROFILE)"); fi; \
 	if [[ -n "$(GVISOR_RELEASE)" ]]; then args+=(--gvisor-release "$(GVISOR_RELEASE)"); fi; \
+	if [[ -n "$(GVISOR_AMD64_SHA512)" ]]; then args+=(--gvisor-amd64-sha512 "$(GVISOR_AMD64_SHA512)"); fi; \
 	if [[ -n "$(GVISOR_RELEASE_BASE_URL)" ]]; then args+=(--gvisor-release-base-url "$(GVISOR_RELEASE_BASE_URL)"); fi; \
+	if [[ -n "$(OTELCOL_CONTRIB_VERSION)" ]]; then args+=(--otelcol-contrib-version "$(OTELCOL_CONTRIB_VERSION)"); fi; \
+	if [[ -n "$(OTELCOL_CONTRIB_SHA256)" ]]; then args+=(--otelcol-contrib-sha256 "$(OTELCOL_CONTRIB_SHA256)"); fi; \
+	if [[ -n "$(OTELCOL_CONTRIB_URL)" ]]; then args+=(--otelcol-contrib-url "$(OTELCOL_CONTRIB_URL)"); fi; \
 	if [[ -n "$(OPEN_YR_VERSION)" ]]; then args+=(--open-yr-version "$(OPEN_YR_VERSION)"); fi; \
 	if [[ -n "$(OPEN_YR_CORE_WHEEL_URL)" ]]; then args+=(--open-yr-core-wheel-url "$(OPEN_YR_CORE_WHEEL_URL)"); fi; \
 	if [[ -n "$(OPEN_YR_CORE_WHEEL_SHA256)" ]]; then args+=(--open-yr-core-wheel-sha256 "$(OPEN_YR_CORE_WHEEL_SHA256)"); fi; \

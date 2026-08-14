@@ -15,8 +15,20 @@ tag=""
 env_name=""
 runtime_image=""
 runtime_profile="${RUNTIME_PROFILE:-rrt}"
-gvisor_release=""
-gvisor_release_base_url=""
+gvisor_release_overridden=0
+gvisor_amd64_sha512_overridden=0
+[[ -n "${GVISOR_RELEASE+x}" ]] && gvisor_release_overridden=1
+[[ -n "${GVISOR_AMD64_SHA512+x}" ]] && gvisor_amd64_sha512_overridden=1
+gvisor_release="${GVISOR_RELEASE:-release-20260706.0}"
+gvisor_amd64_sha512="${GVISOR_AMD64_SHA512:-73938c145ebe554cf61a01da455688f4b732eebdf7b1b635bdef5b195868b363d8cb400e3d92ed1f377b78996805556c247a4849583910cb04e92b156053033e}"
+gvisor_release_base_url="${GVISOR_RELEASE_BASE_URL:-https://storage.googleapis.com/gvisor/releases}"
+otelcol_contrib_version_overridden=0
+otelcol_contrib_sha256_overridden=0
+[[ -n "${OTELCOL_CONTRIB_VERSION+x}" ]] && otelcol_contrib_version_overridden=1
+[[ -n "${OTELCOL_CONTRIB_SHA256+x}" ]] && otelcol_contrib_sha256_overridden=1
+otelcol_contrib_version="${OTELCOL_CONTRIB_VERSION:-0.120.0}"
+otelcol_contrib_sha256="${OTELCOL_CONTRIB_SHA256:-81bf885bc9a86705feb3c113c5a356571390e3601eb651ffcf2b3428f6571adb}"
+otelcol_contrib_url="${OTELCOL_CONTRIB_URL:-}"
 open_yr_version="${OPEN_YR_VERSION:-}"
 open_yr_core_wheel_url="${OPEN_YR_CORE_WHEEL_URL:-}"
 open_yr_core_wheel_sha256="${OPEN_YR_CORE_WHEEL_SHA256:-}"
@@ -98,10 +110,30 @@ while [[ $# -gt 0 ]]; do
       ;;
     --gvisor-release)
       gvisor_release="$2"
+      gvisor_release_overridden=1
+      shift 2
+      ;;
+    --gvisor-amd64-sha512)
+      gvisor_amd64_sha512="$2"
+      gvisor_amd64_sha512_overridden=1
       shift 2
       ;;
     --gvisor-release-base-url)
       gvisor_release_base_url="$2"
+      shift 2
+      ;;
+    --otelcol-contrib-version)
+      otelcol_contrib_version="$2"
+      otelcol_contrib_version_overridden=1
+      shift 2
+      ;;
+    --otelcol-contrib-sha256)
+      otelcol_contrib_sha256="$2"
+      otelcol_contrib_sha256_overridden=1
+      shift 2
+      ;;
+    --otelcol-contrib-url)
+      otelcol_contrib_url="$2"
       shift 2
       ;;
     --open-yr-version)
@@ -170,6 +202,27 @@ case "${include_nvidia}" in
   true|false) ;;
   *) die "AKERNEL_INCLUDE_NVIDIA must be true or false" ;;
 esac
+if [[ "${gvisor_release_overridden}" != "${gvisor_amd64_sha512_overridden}" ]]; then
+  die "GVISOR_RELEASE and GVISOR_AMD64_SHA512 must be overridden together"
+fi
+if [[ "${otelcol_contrib_version_overridden}" != "${otelcol_contrib_sha256_overridden}" ]]; then
+  die "OTELCOL_CONTRIB_VERSION and OTELCOL_CONTRIB_SHA256 must be overridden together"
+fi
+[[ "${gvisor_release}" =~ ^release-[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]] || \
+  die "GVISOR_RELEASE must be an official release-* tag"
+[[ "${gvisor_amd64_sha512}" =~ ^[0-9a-f]{128}$ ]] || \
+  die "GVISOR_AMD64_SHA512 must be 128 lowercase hexadecimal characters"
+[[ "${gvisor_release_base_url}" =~ ^https?://[^[:space:]]+$ ]] || \
+  die "GVISOR_RELEASE_BASE_URL is invalid"
+[[ "${otelcol_contrib_version}" =~ ^[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]] || \
+  die "OTELCOL_CONTRIB_VERSION is invalid"
+[[ "${otelcol_contrib_sha256}" =~ ^[0-9a-f]{64}$ ]] || \
+  die "OTELCOL_CONTRIB_SHA256 must be 64 lowercase hexadecimal characters"
+if [[ -z "${otelcol_contrib_url}" ]]; then
+  otelcol_contrib_url="https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${otelcol_contrib_version}/otelcol-contrib_${otelcol_contrib_version}_linux_amd64.tar.gz"
+fi
+[[ "${otelcol_contrib_url}" =~ ^https?://[^[:space:]]+$ ]] || \
+  die "OTELCOL_CONTRIB_URL is invalid"
 [[ "${kata_release}" =~ ^[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]] || \
   die "KATA_RELEASE is invalid"
 [[ "${kata_amd64_sha256}" =~ ^[0-9a-f]{64}$ ]] || \
@@ -262,6 +315,22 @@ if [[ "${include_kata}" == "true" && -z "${temporary_cache_dir}" ]]; then
     "${kata_cache_path}"
 fi
 
+if [[ -z "${temporary_cache_dir}" ]]; then
+  gvisor_version="${gvisor_release#release-}"
+  gvisor_cache_path="${dependency_cache_dir}/gvisor/${gvisor_release}/x86_64/${gvisor_amd64_sha512}/runsc"
+  "${AKERNEL_REPO_ROOT}/builder/downloaders/cache-verified-download.sh" \
+    "${gvisor_release_base_url}/release/${gvisor_version}/x86_64/runsc" \
+    "${gvisor_amd64_sha512}" \
+    "${gvisor_cache_path}"
+
+  otel_filename="otelcol-contrib_${otelcol_contrib_version}_linux_amd64.tar.gz"
+  otel_cache_path="${dependency_cache_dir}/otelcol-contrib/${otelcol_contrib_version}/linux-amd64/${otelcol_contrib_sha256}/${otel_filename}"
+  "${AKERNEL_REPO_ROOT}/builder/downloaders/cache-verified-download.sh" \
+    "${otelcol_contrib_url}" \
+    "${otelcol_contrib_sha256}" \
+    "${otel_cache_path}"
+fi
+
 proxy_build_args=()
 for proxy_name in \
   HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
@@ -312,15 +381,15 @@ node_build_args=(
   --build-arg "KATA_RELEASE=${kata_release}"
   --build-arg "KATA_AMD64_SHA256=${kata_amd64_sha256}"
   --build-arg "KATA_RELEASE_BASE_URL=${kata_release_base_url}"
+  --build-arg "GVISOR_RELEASE=${gvisor_release}"
+  --build-arg "GVISOR_AMD64_SHA512=${gvisor_amd64_sha512}"
+  --build-arg "GVISOR_RELEASE_BASE_URL=${gvisor_release_base_url}"
+  --build-arg "OTELCOL_CONTRIB_VERSION=${otelcol_contrib_version}"
+  --build-arg "OTELCOL_CONTRIB_SHA256=${otelcol_contrib_sha256}"
+  --build-arg "OTELCOL_CONTRIB_URL=${otelcol_contrib_url}"
 )
 if [[ -n "${open_yr_version}" ]]; then
   node_build_args+=(--build-arg "OPEN_YR_VERSION=${open_yr_version}")
-fi
-if [[ -n "${gvisor_release}" ]]; then
-  node_build_args+=(--build-arg "GVISOR_RELEASE=${gvisor_release}")
-fi
-if [[ -n "${gvisor_release_base_url}" ]]; then
-  node_build_args+=(--build-arg "GVISOR_RELEASE_BASE_URL=${gvisor_release_base_url}")
 fi
 if [[ -n "${open_yr_core_wheel_url}" || -n "${open_yr_core_wheel_sha256}" ]]; then
   if [[ -z "${open_yr_core_wheel_url}" || -z "${open_yr_core_wheel_sha256}" ]]; then

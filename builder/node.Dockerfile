@@ -14,6 +14,7 @@ ARG OPEN_YR_RELEASE_BASE_URL=https://github.com/openYuanrong-mirror/yuanrong/rel
 ARG OPEN_YR_CORE_AMD64_SHA256=0a890db1785e349bfd625844a05059bdd494e32a429cea771cf969f09e3aba2c
 ARG OPEN_YR_CORE_ARM64_SHA256=64e14233fcbbb3418311d2f242e164e7be6e7bee0315c7619b18d9c5ddd01a76
 ARG GVISOR_RELEASE=release-20260706.0
+ARG GVISOR_AMD64_SHA512=73938c145ebe554cf61a01da455688f4b732eebdf7b1b635bdef5b195868b363d8cb400e3d92ed1f377b78996805556c247a4849583910cb04e92b156053033e
 ARG GVISOR_RELEASE_BASE_URL=https://storage.googleapis.com/gvisor/releases
 ARG LIBNVIDIA_CONTAINER_VERSION=1.19.1-1
 ARG KATA_BUILD_IMAGE=ubuntu:24.04
@@ -21,6 +22,7 @@ ARG KATA_RELEASE=4.0.0
 ARG KATA_AMD64_SHA256=2c3b9dfeba355582b40aee462b12916c9740654d0230f696adf719d67b063a8c
 ARG KATA_RELEASE_BASE_URL=https://github.com/kata-containers/kata-containers/releases/download
 ARG OTELCOL_CONTRIB_VERSION=0.120.0
+ARG OTELCOL_CONTRIB_SHA256=81bf885bc9a86705feb3c113c5a356571390e3601eb651ffcf2b3428f6571adb
 ARG OTELCOL_CONTRIB_URL=https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_CONTRIB_VERSION}/otelcol-contrib_${OTELCOL_CONTRIB_VERSION}_linux_amd64.tar.gz
 ARG AKERNEL_VERSION=unknown
 ARG AKERNEL_REVISION=unknown
@@ -118,8 +120,11 @@ ARG OPEN_YR_RELEASE_BASE_URL
 ARG OPEN_YR_CORE_AMD64_SHA256
 ARG OPEN_YR_CORE_ARM64_SHA256
 ARG GVISOR_RELEASE
+ARG GVISOR_AMD64_SHA512
 ARG GVISOR_RELEASE_BASE_URL
 ARG LIBNVIDIA_CONTAINER_VERSION
+ARG OTELCOL_CONTRIB_VERSION
+ARG OTELCOL_CONTRIB_SHA256
 ARG OTELCOL_CONTRIB_URL
 ARG TARGETARCH
 ARG PIP_INDEX_URL=https://pypi.org/simple
@@ -174,7 +179,8 @@ RUN if command -v update-alternatives >/dev/null 2>&1; then \
         update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy || true; \
     fi
 
-RUN set -eux; \
+RUN --mount=type=bind,from=akernel-download-cache,target=/var/cache/akernel-downloads,ro \
+    set -eux; \
     case "${TARGETARCH:-}" in \
         amd64) gvisor_arch="x86_64" ;; \
         "") \
@@ -190,9 +196,15 @@ RUN set -eux; \
     gvisor_url="${GVISOR_RELEASE_BASE_URL}/release/${gvisor_version}/${gvisor_arch}"; \
     mkdir -p /tmp/gvisor-release; \
     cd /tmp/gvisor-release; \
-    curl -fSLO --retry 10 --retry-delay 2 --retry-all-errors "${gvisor_url}/runsc"; \
-    curl -fSLO --retry 10 --retry-delay 2 --retry-all-errors "${gvisor_url}/runsc.sha512"; \
-    sha512sum -c runsc.sha512; \
+    cache_runsc="/var/cache/akernel-downloads/gvisor/${GVISOR_RELEASE}/x86_64/${GVISOR_AMD64_SHA512}/runsc"; \
+    if [ -f "${cache_runsc}" ]; then \
+      echo "gvisor-cache-hit ${cache_runsc}"; \
+      cp "${cache_runsc}" runsc; \
+    else \
+      curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
+        "${gvisor_url}/runsc" -o runsc; \
+    fi; \
+    echo "${GVISOR_AMD64_SHA512}  runsc" | sha512sum -c -; \
     install -m 0755 runsc /usr/local/bin/runsc; \
     rm -rf /tmp/gvisor-release
 
@@ -302,10 +314,21 @@ COPY ./builder/scripts/master_entrypoint.sh ${YR_INSTALLATION_DIR}/entrypoint.sh
 COPY ./builder/scripts/*.sh /root/
 COPY ./builder/systemd_services/*.service /etc/systemd/system/
 
-RUN curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
-        "${OTELCOL_CONTRIB_URL}" \
-    | tar -xz -C /usr/local/bin otelcol-contrib && \
-    chmod 0755 /usr/local/bin/otelcol-contrib
+RUN --mount=type=bind,from=akernel-download-cache,target=/var/cache/akernel-downloads,ro \
+    set -eux; \
+    archive="/tmp/otelcol-contrib_${OTELCOL_CONTRIB_VERSION}_linux_amd64.tar.gz"; \
+    cache_archive="/var/cache/akernel-downloads/otelcol-contrib/${OTELCOL_CONTRIB_VERSION}/linux-amd64/${OTELCOL_CONTRIB_SHA256}/otelcol-contrib_${OTELCOL_CONTRIB_VERSION}_linux_amd64.tar.gz"; \
+    if [ -f "${cache_archive}" ]; then \
+      echo "otelcol-cache-hit ${cache_archive}"; \
+      cp "${cache_archive}" "${archive}"; \
+    else \
+      curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
+        "${OTELCOL_CONTRIB_URL}" -o "${archive}"; \
+    fi; \
+    echo "${OTELCOL_CONTRIB_SHA256}  ${archive}" | sha256sum -c -; \
+    tar -xzf "${archive}" -C /usr/local/bin otelcol-contrib; \
+    chmod 0755 /usr/local/bin/otelcol-contrib; \
+    rm -f "${archive}"
 
 RUN mkdir -p ${YR_INSTALLATION_DIR}/logs ${YR_INSTALLATION_DIR}/metrics ${YR_INSTALLATION_DIR}/trace && \
     chmod 0755 ${YR_INSTALLATION_DIR}/yr_node_bootstrap.sh ${YR_INSTALLATION_DIR}/entrypoint.sh && \
