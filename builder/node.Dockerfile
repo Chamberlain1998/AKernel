@@ -33,7 +33,8 @@ ARG KATA_RELEASE
 ARG KATA_AMD64_SHA256
 ARG KATA_RELEASE_BASE_URL
 ARG TARGETARCH
-RUN set -eux; \
+RUN --mount=type=bind,from=akernel-download-cache,target=/var/cache/akernel-downloads,ro \
+    set -eux; \
     case "${AKERNEL_INCLUDE_KATA}" in true|false) ;; *) exit 1 ;; esac; \
     mkdir -p /kata/opt/kata; \
     if [ "${AKERNEL_INCLUDE_KATA}" = "false" ]; then \
@@ -44,9 +45,15 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends ca-certificates curl zstd; \
     rm -rf /var/lib/apt/lists/*; \
     archive="/tmp/kata-static-${KATA_RELEASE}-amd64.tar.zst"; \
-    curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
-      "${KATA_RELEASE_BASE_URL}/${KATA_RELEASE}/kata-static-${KATA_RELEASE}-amd64.tar.zst" \
-      -o "${archive}"; \
+    cache_archive="/var/cache/akernel-downloads/kata/${KATA_RELEASE}/amd64/${KATA_AMD64_SHA256}/kata-static-${KATA_RELEASE}-amd64.tar.zst"; \
+    if [ -f "${cache_archive}" ]; then \
+      echo "kata-cache-hit ${cache_archive}"; \
+      cp "${cache_archive}" "${archive}"; \
+    else \
+      curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
+        "${KATA_RELEASE_BASE_URL}/${KATA_RELEASE}/kata-static-${KATA_RELEASE}-amd64.tar.zst" \
+        -o "${archive}"; \
+    fi; \
     echo "${KATA_AMD64_SHA256}  ${archive}" | sha256sum -c -; \
     mkdir -p /kata; \
     tar --zstd -xf "${archive}" -C /kata \

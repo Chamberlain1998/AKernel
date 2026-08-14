@@ -43,6 +43,7 @@ require_text "${ROOT}/deploy/scripts/build-image.sh" 'PIP_INDEX_URL=${pip_index_
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'UV_PYTHON_INSTALL_MIRROR=${uv_python_install_mirror}'
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'AKERNEL_INCLUDE_KATA=${include_kata}'
 require_text "${ROOT}/deploy/scripts/build-image.sh" 'AKERNEL_INCLUDE_NVIDIA=${include_nvidia}'
+require_text "${ROOT}/deploy/scripts/build-image.sh" 'AKERNEL_DEPENDENCY_CACHE_DIR'
 
 require_text "${ROOT}/builder/runtime.Dockerfile" 'ARG OPEN_YR_RRT_WHEEL_URL='
 require_text "${ROOT}/builder/runtime.Dockerfile" 'COPY ./builder/downloaders/download-openyuanrong-rrt.sh /usr/local/bin/'
@@ -73,6 +74,9 @@ reject_text "${ROOT}/builder/node.Dockerfile" 'wheel_url="${OPEN_YR_RELEASE_BASE
 require_text "${ROOT}/builder/node.Dockerfile" 'yr_services_python.yaml'
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_KATA=true'
 require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_KATA}" = "false" ]; then'
+require_text "${ROOT}/builder/node.Dockerfile" 'from=akernel-download-cache'
+require_text "${ROOT}/builder/node.Dockerfile" 'target=/var/cache/akernel-downloads,ro'
+require_text "${ROOT}/builder/node.Dockerfile" 'kata-cache-hit'
 require_text "${ROOT}/builder/node.Dockerfile" 'ARG AKERNEL_INCLUDE_NVIDIA=true'
 require_text "${ROOT}/builder/node.Dockerfile" 'if [ "${AKERNEL_INCLUDE_NVIDIA}" = "false" ]; then'
 require_text "${ROOT}/builder/node.Dockerfile" '        patch \'
@@ -96,12 +100,14 @@ trap 'rm -rf "${behavior_tmp}"' EXIT
 fixture="${behavior_tmp}/fixture"
 mkdir -p \
   "${fixture}/deploy/scripts" \
-  "${fixture}/builder" \
+  "${fixture}/builder/downloaders" \
   "${fixture}/src/sandboxd/version" \
   "${fixture}/src/distill-fs/src" \
   "${behavior_tmp}/bin"
 cp "${ROOT}/deploy/scripts/build-image.sh" "${fixture}/deploy/scripts/"
 cp "${ROOT}/deploy/scripts/common.sh" "${fixture}/deploy/scripts/"
+cp "${ROOT}/builder/downloaders/cache-verified-download.sh" \
+  "${fixture}/builder/downloaders/"
 : >"${fixture}/builder/runtime.Dockerfile"
 : >"${fixture}/builder/node.Dockerfile"
 printf '1.2.3\n' >"${fixture}/src/sandboxd/version/VERSION"
@@ -122,13 +128,31 @@ done
 
 cat >"${behavior_tmp}/bin/docker" <<'EOF'
 #!/usr/bin/env bash
+if [[ "$*" == "build --help" ]]; then
+  echo "      --build-context stringArray"
+  exit 0
+fi
 printf '%s\n' "$*" >>"${DOCKER_LOG}"
 EOF
 chmod +x "${behavior_tmp}/bin/docker"
 
 runtime_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-DOCKER_LOG="${behavior_tmp}/docker.log" \
-PATH="${behavior_tmp}/bin:${PATH}" \
+kata_source="${behavior_tmp}/kata-static.tar.zst"
+printf 'small kata archive fixture\n' >"${kata_source}"
+kata_sha="$(sha256sum "${kata_source}" | awk '{print $1}')"
+dependency_cache="${behavior_tmp}/dependency-cache"
+mkdir -p "${dependency_cache}"
+dependency_cache="$(cd "${dependency_cache}" && pwd -P)"
+fake_curl_calls="${behavior_tmp}/fake-curl-calls"
+build_output="$(
+  DOCKER_LOG="${behavior_tmp}/docker.log" \
+  PATH="${behavior_tmp}/bin:${ROOT}/builder/downloaders/tests/fixtures:${PATH}" \
+  AKERNEL_DEPENDENCY_CACHE_DIR="${dependency_cache}" \
+  KATA_RELEASE=9.9.9 \
+  KATA_AMD64_SHA256="${kata_sha}" \
+  KATA_RELEASE_BASE_URL=https://example.invalid/kata/releases/download \
+  FAKE_CURL_SOURCE="${kata_source}" \
+  FAKE_CURL_CALL_DIR="${fake_curl_calls}" \
   "${fixture}/deploy/scripts/build-image.sh" \
     --repository registry.example.invalid/akernel \
     --tag behavior-test \
@@ -136,6 +160,18 @@ PATH="${behavior_tmp}/bin:${PATH}" \
     --open-yr-version 0.8.1 \
     --rrt-runtime-url https://artifacts.example.invalid/rrt-runtime-amd64 \
     --rrt-runtime-sha256 "${runtime_sha}"
+)"
+
+kata_cache_file="${dependency_cache}/kata/9.9.9/amd64/${kata_sha}/kata-static-9.9.9-amd64.tar.zst"
+[[ "${build_output}" == *"cache-fill ${kata_cache_file}"* ]] || {
+  echo "first cached build did not report a cache fill" >&2
+  exit 1
+}
+cmp "${kata_source}" "${kata_cache_file}"
+[[ "$(find "${fake_curl_calls}" -type f -name 'call-*' | wc -l | tr -d ' ')" == "1" ]] || {
+  echo "first cached build did not download exactly once" >&2
+  exit 1
+}
 
 runtime_invocation="$(sed -n '1p' "${behavior_tmp}/docker.log")"
 node_invocation="$(sed -n '2p' "${behavior_tmp}/docker.log")"
@@ -163,6 +199,64 @@ done
 }
 [[ "${node_invocation}" != *'RRT_RUNTIME_URL='* ]] || {
   echo "node Docker invocation unexpectedly contains RRT_RUNTIME_URL" >&2
+  exit 1
+}
+
+for expected in \
+  "--build-context akernel-download-cache=${dependency_cache}" \
+  'KATA_RELEASE=9.9.9' \
+  "KATA_AMD64_SHA256=${kata_sha}" \
+  'KATA_RELEASE_BASE_URL=https://example.invalid/kata/releases/download'; do
+  [[ "${node_invocation}" == *"${expected}"* ]] || {
+    echo "node Docker invocation is missing ${expected}" >&2
+    exit 1
+  }
+done
+
+second_output="$(
+  DOCKER_LOG="${behavior_tmp}/docker.log" \
+  PATH="${behavior_tmp}/bin:${ROOT}/builder/downloaders/tests/fixtures:${PATH}" \
+  AKERNEL_DEPENDENCY_CACHE_DIR="${dependency_cache}" \
+  KATA_RELEASE=9.9.9 \
+  KATA_AMD64_SHA256="${kata_sha}" \
+  KATA_RELEASE_BASE_URL=https://example.invalid/kata/releases/download \
+  FAKE_CURL_SOURCE="${kata_source}" \
+  FAKE_CURL_CALL_DIR="${fake_curl_calls}" \
+  "${fixture}/deploy/scripts/build-image.sh" \
+    --repository registry.example.invalid/akernel \
+    --tag behavior-test-hit \
+    --runtime-profile rrt \
+    --open-yr-version 0.8.1 \
+    --rrt-runtime-url https://artifacts.example.invalid/rrt-runtime-amd64 \
+    --rrt-runtime-sha256 "${runtime_sha}"
+)"
+[[ "${second_output}" == *"cache-hit ${kata_cache_file}"* ]] || {
+  echo "second cached build did not report a cache hit" >&2
+  exit 1
+}
+[[ "$(find "${fake_curl_calls}" -type f -name 'call-*' | wc -l | tr -d ' ')" == "1" ]] || {
+  echo "cache hit unexpectedly downloaded the Kata archive" >&2
+  exit 1
+}
+
+uncached_log="${behavior_tmp}/uncached-docker.log"
+DOCKER_LOG="${uncached_log}" \
+PATH="${behavior_tmp}/bin:${ROOT}/builder/downloaders/tests/fixtures:${PATH}" \
+FAKE_CURL_FAIL=1 \
+FAKE_CURL_SOURCE="${kata_source}" \
+FAKE_CURL_CALL_DIR="${behavior_tmp}/uncached-calls" \
+  "${fixture}/deploy/scripts/build-image.sh" \
+    --repository registry.example.invalid/akernel \
+    --tag behavior-test-uncached \
+    --runtime-profile rrt \
+    --open-yr-version 0.8.1
+uncached_node_invocation="$(sed -n '2p' "${uncached_log}")"
+[[ "${uncached_node_invocation}" == *'--build-context akernel-download-cache='* ]] || {
+  echo "uncached node build is missing the empty named context" >&2
+  exit 1
+}
+[[ ! -d "${behavior_tmp}/uncached-calls" ]] || {
+  echo "uncached build unexpectedly invoked the host downloader" >&2
   exit 1
 }
 

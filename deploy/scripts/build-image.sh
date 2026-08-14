@@ -28,6 +28,10 @@ pip_index_url="${PIP_INDEX_URL:-}"
 uv_python_install_mirror="${UV_PYTHON_INSTALL_MIRROR:-}"
 include_kata="${AKERNEL_INCLUDE_KATA:-true}"
 include_nvidia="${AKERNEL_INCLUDE_NVIDIA:-true}"
+dependency_cache_dir="${AKERNEL_DEPENDENCY_CACHE_DIR:-}"
+kata_release="${KATA_RELEASE:-4.0.0}"
+kata_amd64_sha256="${KATA_AMD64_SHA256:-2c3b9dfeba355582b40aee462b12916c9740654d0230f696adf719d67b063a8c}"
+kata_release_base_url="${KATA_RELEASE_BASE_URL:-https://github.com/kata-containers/kata-containers/releases/download}"
 print_component_versions=0
 
 component_revision() {
@@ -166,6 +170,12 @@ case "${include_nvidia}" in
   true|false) ;;
   *) die "AKERNEL_INCLUDE_NVIDIA must be true or false" ;;
 esac
+[[ "${kata_release}" =~ ^[0-9A-Za-z][0-9A-Za-z.+_-]*$ ]] || \
+  die "KATA_RELEASE is invalid"
+[[ "${kata_amd64_sha256}" =~ ^[0-9a-f]{64}$ ]] || \
+  die "KATA_AMD64_SHA256 must be 64 lowercase hexadecimal characters"
+[[ "${kata_release_base_url}" =~ ^https?://[^[:space:]]+$ ]] || \
+  die "KATA_RELEASE_BASE_URL is invalid"
 
 require_cmd docker
 
@@ -223,6 +233,35 @@ if [[ -n "${open_yr_rrt_wheel_url}" && -n "${rrt_runtime_url}" ]]; then
   die "RRT wheel and raw runtime overrides are mutually exclusive"
 fi
 
+if ! docker build --help | grep -q -- '--build-context'; then
+  die "Docker BuildKit named-context support is required"
+fi
+
+temporary_cache_dir=""
+cleanup_cache_context() {
+  if [[ -n "${temporary_cache_dir}" ]]; then
+    rm -rf -- "${temporary_cache_dir}"
+  fi
+}
+trap cleanup_cache_context EXIT
+
+if [[ -n "${dependency_cache_dir}" ]]; then
+  mkdir -p "${dependency_cache_dir}"
+  dependency_cache_dir="$(cd "${dependency_cache_dir}" && pwd -P)"
+else
+  temporary_cache_dir="$(mktemp -d "${TMPDIR:-/tmp}/akernel-download-cache.XXXXXX")"
+  dependency_cache_dir="${temporary_cache_dir}"
+fi
+
+if [[ "${include_kata}" == "true" && -z "${temporary_cache_dir}" ]]; then
+  kata_filename="kata-static-${kata_release}-amd64.tar.zst"
+  kata_cache_path="${dependency_cache_dir}/kata/${kata_release}/amd64/${kata_amd64_sha256}/${kata_filename}"
+  "${AKERNEL_REPO_ROOT}/builder/downloaders/cache-verified-download.sh" \
+    "${kata_release_base_url}/${kata_release}/${kata_filename}" \
+    "${kata_amd64_sha256}" \
+    "${kata_cache_path}"
+fi
+
 proxy_build_args=()
 for proxy_name in \
   HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
@@ -270,6 +309,9 @@ node_build_args=(
   --build-arg "AKERNEL_REVISION=${akernel_revision}"
   --build-arg "AKERNEL_INCLUDE_KATA=${include_kata}"
   --build-arg "AKERNEL_INCLUDE_NVIDIA=${include_nvidia}"
+  --build-arg "KATA_RELEASE=${kata_release}"
+  --build-arg "KATA_AMD64_SHA256=${kata_amd64_sha256}"
+  --build-arg "KATA_RELEASE_BASE_URL=${kata_release_base_url}"
 )
 if [[ -n "${open_yr_version}" ]]; then
   node_build_args+=(--build-arg "OPEN_YR_VERSION=${open_yr_version}")
@@ -291,6 +333,7 @@ if [[ -n "${open_yr_core_wheel_url}" || -n "${open_yr_core_wheel_sha256}" ]]; th
 fi
 docker build \
   -f builder/node.Dockerfile \
+  --build-context "akernel-download-cache=${dependency_cache_dir}" \
   "${proxy_build_args[@]}" \
   "${node_build_args[@]}" \
   -t "${all_in_one_image}" \
