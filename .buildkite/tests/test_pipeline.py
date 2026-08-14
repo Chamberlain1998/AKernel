@@ -53,6 +53,7 @@ class PipelineTest(unittest.TestCase):
             self.run_generator(YR_SOURCE="release", YR_VERSION="0.9.7")
         )
 
+        self.assertEqual(pipeline["checkout"]["submodules"], False)
         steps = pipeline["steps"]
         self.assertEqual(
             [step["key"] for step in steps],
@@ -140,6 +141,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_bootstrap_uploads_repository_owned_dynamic_pipeline(self):
         pipeline = yaml.safe_load(BOOTSTRAP.read_text(encoding="utf-8"))
+        self.assertEqual(pipeline["checkout"]["submodules"], False)
         self.assertEqual(len(pipeline["steps"]), 1)
         step = pipeline["steps"][0]
         self.assertIn(

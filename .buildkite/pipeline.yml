@@ -1,5 +1,8 @@
 # Buildkite bootstrap for the repository-owned dynamic pipeline.
 
+checkout:
+  submodules: false
+
 steps:
   - label: ":pipeline: Initialize AKernel image build"
     key: "initialize"

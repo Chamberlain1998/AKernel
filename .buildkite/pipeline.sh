@@ -72,6 +72,9 @@ done
 [[ -n "${normalized_targets}" ]] || die "at least one deployment target is required"
 
 cat <<YAML
+checkout:
+  submodules: false
+
 steps:
   - label: ":package: Resolve YuanRong artifacts"
     key: "resolve-yuanrong"
