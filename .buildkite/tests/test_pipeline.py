@@ -28,6 +28,7 @@ class PipelineTest(unittest.TestCase):
         "172.16.0.0/12",
         "192.168.0.0/16",
         ".buildkite.com",
+        "buildkiteartifacts.com",
         ".buildkiteartifacts.com",
         ".amazonaws.com",
         ".myhuaweicloud.com",
