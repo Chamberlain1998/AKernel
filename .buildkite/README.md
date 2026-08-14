@@ -62,9 +62,10 @@ only when the interface is absent and exports the HTTP(S) proxy at
 `10.77.0.1:3128`. The WireGuard private key remains in Buildkite Secrets and is
 never stored in this repository, pipeline YAML, metadata, logs, or artifacts.
 
-The hook leaves Buildkite, Kubernetes/private networks, and Huawei Cloud/SWR
-domains in `NO_PROXY`; only the proxy server's `10.77.0.1/32` address is routed
-through WireGuard. Both checkout and command containers receive
+The hook leaves Buildkite, its Amazon S3 artifact store, Kubernetes/private
+networks, and Huawei Cloud/SWR domains in `NO_PROXY`; only the proxy server's
+`10.77.0.1/32` address is routed through WireGuard. Both checkout and command
+containers receive
 `BUILDKITE_HOOKS_PATH` through the Kubernetes PodSpec because Buildkite treats
 that variable as protected. Automatic recursive submodule checkout remains
 disabled; the image job initializes only `src/sandboxd` and `src/distill-fs`.
