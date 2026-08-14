@@ -45,6 +45,23 @@ replacement_output="$("${DOWNLOADER}" \
 cmp "${fixture}" "${cache_file}"
 [[ "$(call_count)" == "2" ]]
 
+expected_sha512="$(sha512sum "${fixture}" | awk '{print $1}')"
+sha512_file="${test_root}/cache/gvisor/release-test/x86_64/${expected_sha512}/runsc"
+sha512_output="$("${DOWNLOADER}" \
+  https://example.invalid/runsc "${expected_sha512}" "${sha512_file}")"
+[[ "${sha512_output}" == "cache-fill ${sha512_file}" ]]
+cmp "${fixture}" "${sha512_file}"
+[[ "$(call_count)" == "3" ]]
+
+invalid_digest="$(printf '%096d' 0 | tr 0 a)"
+invalid_call_count="$(call_count)"
+if "${DOWNLOADER}" https://example.invalid/invalid "${invalid_digest}" \
+  "${test_root}/cache/invalid/runsc" >"${test_root}/invalid.log" 2>&1; then
+  echo "invalid digest unexpectedly succeeded" >&2
+  exit 1
+fi
+[[ "$(call_count)" == "${invalid_call_count}" ]]
+
 mismatch_file="${test_root}/cache/mismatch/archive.tar.zst"
 bad_source="${test_root}/bad-source.tar.zst"
 printf 'wrong bytes\n' >"${bad_source}"
