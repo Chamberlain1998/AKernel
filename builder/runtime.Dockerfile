@@ -26,23 +26,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl file unzip && \
     rm -rf /var/lib/apt/lists/*
 
+COPY ./builder/downloaders/download-openyuanrong-rrt.sh /usr/local/bin/
 RUN set -eux; \
     case "${TARGETARCH:-amd64}" in amd64) ;; *) echo "RRT runtime only supports amd64" >&2; exit 1 ;; esac; \
-    if [ -n "${OPEN_YR_RRT_WHEEL_URL}" ] || [ -n "${OPEN_YR_RRT_WHEEL_SHA256}" ]; then \
-        test -n "${OPEN_YR_RRT_WHEEL_URL}"; \
-        test -n "${OPEN_YR_RRT_WHEEL_SHA256}"; \
-        wheel=/tmp/openyuanrong-rrt.whl; \
-        curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
-            -o "${wheel}" "${OPEN_YR_RRT_WHEEL_URL}"; \
-        actual_sha256="$(sha256sum "${wheel}" | cut -d' ' -f1)"; \
-        test "${actual_sha256}" = "${OPEN_YR_RRT_WHEEL_SHA256}"; \
-        unzip -p "${wheel}" openyuanrong_rrt/rrt-runtime > /rrt-runtime; \
-        rm -f "${wheel}"; \
-    else \
-        curl -fSL --retry 5 --retry-delay 2 --retry-all-errors \
-            -o /rrt-runtime "${RRT_RUNTIME_URL}"; \
-        echo "${RRT_RUNTIME_SHA256}  /rrt-runtime" | sha256sum -c -; \
-    fi; \
+    chmod 0755 /usr/local/bin/download-openyuanrong-rrt.sh; \
+    /usr/local/bin/download-openyuanrong-rrt.sh /rrt-runtime; \
     chmod 0755 /rrt-runtime; \
     file /rrt-runtime | grep -Eq 'ELF 64-bit LSB.*x86-64'
 

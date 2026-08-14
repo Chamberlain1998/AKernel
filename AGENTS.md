@@ -150,6 +150,22 @@ provide both `OPEN_YR_CORE_WHEEL_URL` and `OPEN_YR_CORE_WHEEL_SHA256` to
 `make build`. The complete wheel is verified before it replaces the pinned
 release control plane.
 
+The Dockerfiles delegate openYuanRong artifact acquisition to two stable,
+replaceable build-context scripts:
+
+- `builder/downloaders/download-openyuanrong-core.sh` writes exactly one core
+  wheel to the destination directory passed as its only argument.
+- `builder/downloaders/download-openyuanrong-rrt.sh` writes the unpacked RRT
+  executable to the destination file passed as its only argument.
+
+The checked-in implementations retain the checksum-pinned release downloads
+and the existing URL/SHA override pairs. A private pipeline may replace either
+script before `docker build` to fetch from OBS or another authenticated source
+without patching a Dockerfile. Replacement scripts are build code: they must
+authenticate their source where required, verify artifact integrity, and honor
+the same output contract. Docker still validates that the core result is one
+wheel and that the RRT result is an executable x86-64 ELF.
+
 Inspect the selected local versions without building an image:
 
 ```bash
