@@ -170,6 +170,7 @@ steps:
       AKERNEL_IMAGE_TAG: "${image_tag}"
       AKERNEL_INCLUDE_KATA: "${include_kata}"
       AKERNEL_INCLUDE_NVIDIA: "${include_nvidia}"
+      AKERNEL_DEPENDENCY_CACHE_DIR: "/var/cache/akernel-downloads"
       PIP_INDEX_URL: "${pip_index_url}"
       UV_PYTHON_INSTALL_MIRROR: "${uv_python_install_mirror}"
     agents:
@@ -211,6 +212,8 @@ steps:
                 volumeMounts:
                   - name: docker-graph
                     mountPath: /var/lib/docker
+                  - name: dependency-cache
+                    mountPath: /var/cache/akernel-downloads
                 resources:
                   requests: { cpu: "8", memory: "16Gi" }
                   limits: { cpu: "10", memory: "32Gi" }
@@ -232,6 +235,9 @@ steps:
               - name: docker-graph
                 emptyDir:
                   sizeLimit: 100Gi
+              - name: dependency-cache
+                persistentVolumeClaim:
+                  claimName: akernel-dependency-cache
     timeout_in_minutes: 180
 
   - label: ":package: Package AKernel deployments"

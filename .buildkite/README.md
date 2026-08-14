@@ -53,6 +53,27 @@ receives `SWR_USERNAME`, `SWR_PASSWORD`, and Docker configuration from the
 existing `swr-credentials` and `swr-pull-secret` secrets. No registry secret is
 stored in this repository or uploaded as an artifact.
 
+## Large dependency cache
+
+Apply `.buildkite/kubernetes/akernel-dependency-cache-pvc.yaml` once in the
+Buildkite job namespace before running the pipeline. The namespace's default
+storage class must provide at least a 10 GiB `ReadWriteOnce` volume. The claim
+is mounted read-write at `/var/cache/akernel-downloads` only in the image
+command container; checkout, YuanRong resolution, and deployment packaging do
+not mount it. `/var/lib/docker` remains a per-job `emptyDir` and is never
+shared between Docker daemons.
+
+The first cached asset is the checksum-pinned Kata Containers 4.0.0 amd64
+static archive. Cache paths include component, version, architecture, digest,
+and filename. A miss downloads into a build-unique temporary file on the PVC,
+verifies SHA-256, and atomically publishes the final entry. A hit is verified
+again by the host downloader and by the Docker stage. Cache entries are
+disposable; deleting one only makes the next image job download it again.
+
+Outside Buildkite, leave `AKERNEL_DEPENDENCY_CACHE_DIR` unset to retain the
+normal upstream-download path. Set it to a writable directory to opt into the
+same verified cache behavior.
+
 ## Restricted GitHub egress
 
 Every job requires the encrypted Buildkite Secret `AKERNEL_WG_CONFIG`. Its

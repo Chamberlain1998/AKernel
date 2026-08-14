@@ -154,6 +154,45 @@ class PipelineTest(unittest.TestCase):
             volume for volume in pod["volumes"] if volume["name"] == "docker-graph"
         )
         self.assertEqual(docker_graph["emptyDir"]["sizeLimit"], "100Gi")
+        dependency_cache = next(
+            volume
+            for volume in pod["volumes"]
+            if volume["name"] == "dependency-cache"
+        )
+        self.assertEqual(
+            dependency_cache["persistentVolumeClaim"]["claimName"],
+            "akernel-dependency-cache",
+        )
+        self.assertIn(
+            {
+                "name": "dependency-cache",
+                "mountPath": "/var/cache/akernel-downloads",
+            },
+            container["volumeMounts"],
+        )
+        self.assertEqual(
+            steps[1]["env"]["AKERNEL_DEPENDENCY_CACHE_DIR"],
+            "/var/cache/akernel-downloads",
+        )
+
+        for isolated_step in (steps[0], steps[2]):
+            self.assertNotIn(
+                "AKERNEL_DEPENDENCY_CACHE_DIR",
+                isolated_step.get("env", {}),
+            )
+            isolated_pod = isolated_step["plugins"][0]["kubernetes"]["podSpecPatch"]
+            self.assertNotIn(
+                "dependency-cache",
+                {volume["name"] for volume in isolated_pod["volumes"]},
+            )
+            for isolated_container in isolated_pod["containers"]:
+                self.assertNotIn(
+                    "dependency-cache",
+                    {
+                        mount["name"]
+                        for mount in isolated_container.get("volumeMounts", [])
+                    },
+                )
         secret_keys = {
             (
                 entry["name"],
