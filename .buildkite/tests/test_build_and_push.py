@@ -140,6 +140,7 @@ class BuildAndPushTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls.read_text(encoding="utf-8").splitlines()
         make_call = next(line for line in calls if line.startswith("make "))
+        self.assertIn("SHELL=/bin/bash", make_call)
         self.assertIn("RUNTIME_PROFILE=rrt", make_call)
         self.assertIn("OPEN_YR_VERSION=0.9.7", make_call)
         self.assertIn("OPEN_YR_CORE_WHEEL_URL=https://artifacts.example/core.whl", make_call)

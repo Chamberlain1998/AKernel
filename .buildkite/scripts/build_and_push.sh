@@ -163,7 +163,7 @@ if [[ -n "${UV_PYTHON_INSTALL_MIRROR:-}" ]]; then
 fi
 
 set +e
-(cd "${ROOT}" && make "${build_arguments[@]}") 2>&1 | tee "${build_log}"
+(cd "${ROOT}" && make SHELL=/bin/bash "${build_arguments[@]}") 2>&1 | tee "${build_log}"
 make_status="${PIPESTATUS[0]}"
 set -e
 [[ "${make_status}" -eq 0 ]] || die "AKernel image build failed with status ${make_status}"
