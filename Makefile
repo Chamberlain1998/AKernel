@@ -10,10 +10,13 @@ IMAGE_TAG ?=
 IMAGE_REPOSITORY ?=
 GVISOR_RELEASE ?=
 GVISOR_RELEASE_BASE_URL ?=
+OPEN_YR_VERSION ?=
 OPEN_YR_CORE_WHEEL_URL ?=
 OPEN_YR_CORE_WHEEL_SHA256 ?=
 OPEN_YR_RRT_WHEEL_URL ?=
 OPEN_YR_RRT_WHEEL_SHA256 ?=
+RRT_RUNTIME_URL ?=
+RRT_RUNTIME_SHA256 ?=
 PIP_INDEX_URL ?=
 UV_PYTHON_INSTALL_MIRROR ?=
 AKERNEL_INCLUDE_KATA ?= true
@@ -55,6 +58,7 @@ help:
 	@echo "  make config INSTALL_DRAGONFLY=true Enable optional P2P image distribution"
 	@echo "  make build IMAGE_TAG=<tag>          Build the all-in-one image"
 	@echo "  make build RUNTIME_PROFILE=python   Include optional Python runtimes"
+	@echo "  make build OPEN_YR_VERSION=<version>  Select a YuanRong release version"
 	@echo "  make build GVISOR_RELEASE=<tag>     Override the pinned official gVisor tag"
 	@echo "  make build AKERNEL_INCLUDE_KATA=false  Build a runsc-only image"
 	@echo "  make build AKERNEL_INCLUDE_NVIDIA=false  Build without NVIDIA userspace tools"
@@ -66,6 +70,7 @@ help:
 	@echo "  make print-env                     Print SDK environment exports"
 	@echo "  make sdk-check                     Lint, type-check, and test the Python SDK"
 	@echo "  make deploy-script-check           Check deployment script syntax"
+	@echo "  make buildkite-check               Check the AKernel image pipeline"
 	@echo "  make e2e                           Run the basic SDK e2e example"
 	@echo "  make destroy                       Destroy cloud resources"
 
@@ -107,10 +112,13 @@ build:
 	if [[ -n "$(RUNTIME_PROFILE)" ]]; then args+=(--runtime-profile "$(RUNTIME_PROFILE)"); fi; \
 	if [[ -n "$(GVISOR_RELEASE)" ]]; then args+=(--gvisor-release "$(GVISOR_RELEASE)"); fi; \
 	if [[ -n "$(GVISOR_RELEASE_BASE_URL)" ]]; then args+=(--gvisor-release-base-url "$(GVISOR_RELEASE_BASE_URL)"); fi; \
+	if [[ -n "$(OPEN_YR_VERSION)" ]]; then args+=(--open-yr-version "$(OPEN_YR_VERSION)"); fi; \
 	if [[ -n "$(OPEN_YR_CORE_WHEEL_URL)" ]]; then args+=(--open-yr-core-wheel-url "$(OPEN_YR_CORE_WHEEL_URL)"); fi; \
 	if [[ -n "$(OPEN_YR_CORE_WHEEL_SHA256)" ]]; then args+=(--open-yr-core-wheel-sha256 "$(OPEN_YR_CORE_WHEEL_SHA256)"); fi; \
 	if [[ -n "$(OPEN_YR_RRT_WHEEL_URL)" ]]; then args+=(--open-yr-rrt-wheel-url "$(OPEN_YR_RRT_WHEEL_URL)"); fi; \
 	if [[ -n "$(OPEN_YR_RRT_WHEEL_SHA256)" ]]; then args+=(--open-yr-rrt-wheel-sha256 "$(OPEN_YR_RRT_WHEEL_SHA256)"); fi; \
+	if [[ -n "$(RRT_RUNTIME_URL)" ]]; then args+=(--rrt-runtime-url "$(RRT_RUNTIME_URL)"); fi; \
+	if [[ -n "$(RRT_RUNTIME_SHA256)" ]]; then args+=(--rrt-runtime-sha256 "$(RRT_RUNTIME_SHA256)"); fi; \
 	if [[ -n "$(PIP_INDEX_URL)" ]]; then args+=(--pip-index-url "$(PIP_INDEX_URL)"); fi; \
 	if [[ -n "$(UV_PYTHON_INSTALL_MIRROR)" ]]; then args+=(--uv-python-install-mirror "$(UV_PYTHON_INSTALL_MIRROR)"); fi; \
 	args+=(--include-kata "$(AKERNEL_INCLUDE_KATA)"); \
@@ -182,6 +190,15 @@ deploy-script-check:
 	git ls-files -z -- 'deploy/**/*.py' | \
 		xargs -0 -r python3 -c \
 		'import pathlib, sys; [compile(pathlib.Path(path).read_bytes(), path, "exec") for path in sys.argv[1:]]'
+
+.PHONY: buildkite-check
+buildkite-check:
+	@python3 -m unittest discover -s .buildkite/tests -p 'test_*.py' -v
+	@find .buildkite -type f -name '*.py' -print0 | \
+		xargs -0 python3 -m py_compile
+	@while IFS= read -r -d '' script; do \
+		bash -n "$$script"; \
+	  done < <(find .buildkite -type f -name '*.sh' -print0)
 
 .PHONY: destroy
 destroy:

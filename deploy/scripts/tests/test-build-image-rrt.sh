@@ -91,4 +91,70 @@ require_text "${ROOT}/builder/config/yr_services.yaml" 'rrt:'
 require_text "${ROOT}/builder/config/yr_services.yaml" 'runtime: rust'
 require_text "${ROOT}/builder/config/yr_services.yaml" '/__yuanrong/usr/local/bin/rrt-runtime'
 
+behavior_tmp="$(mktemp -d)"
+trap 'rm -rf "${behavior_tmp}"' EXIT
+fixture="${behavior_tmp}/fixture"
+mkdir -p \
+  "${fixture}/deploy/scripts" \
+  "${fixture}/builder" \
+  "${fixture}/src/sandboxd/version" \
+  "${fixture}/src/distill-fs/src" \
+  "${behavior_tmp}/bin"
+cp "${ROOT}/deploy/scripts/build-image.sh" "${fixture}/deploy/scripts/"
+cp "${ROOT}/deploy/scripts/common.sh" "${fixture}/deploy/scripts/"
+: >"${fixture}/builder/runtime.Dockerfile"
+: >"${fixture}/builder/node.Dockerfile"
+printf '1.2.3\n' >"${fixture}/src/sandboxd/version/VERSION"
+printf '[package]\nname = "distill_fs"\nversion = "4.5.6"\n' \
+  >"${fixture}/src/distill-fs/Cargo.toml"
+printf 'fn main() {}\n' >"${fixture}/src/distill-fs/src/main.rs"
+
+for repository in \
+  "${fixture}" \
+  "${fixture}/src/sandboxd" \
+  "${fixture}/src/distill-fs"; do
+  git -C "${repository}" init -q
+  git -C "${repository}" config user.email build-test@example.invalid
+  git -C "${repository}" config user.name 'Build Test'
+  git -C "${repository}" add .
+  git -C "${repository}" commit -qm fixture
+done
+
+cat >"${behavior_tmp}/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${DOCKER_LOG}"
+EOF
+chmod +x "${behavior_tmp}/bin/docker"
+
+runtime_sha='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+DOCKER_LOG="${behavior_tmp}/docker.log" \
+PATH="${behavior_tmp}/bin:${PATH}" \
+  "${fixture}/deploy/scripts/build-image.sh" \
+    --repository registry.example.invalid/akernel \
+    --tag behavior-test \
+    --runtime-profile rrt \
+    --open-yr-version 0.8.1 \
+    --rrt-runtime-url https://artifacts.example.invalid/rrt-runtime-amd64 \
+    --rrt-runtime-sha256 "${runtime_sha}"
+
+runtime_invocation="$(sed -n '1p' "${behavior_tmp}/docker.log")"
+node_invocation="$(sed -n '2p' "${behavior_tmp}/docker.log")"
+for expected in \
+  'OPEN_YR_VERSION=0.8.1' \
+  'RRT_RUNTIME_URL=https://artifacts.example.invalid/rrt-runtime-amd64' \
+  "RRT_RUNTIME_SHA256=${runtime_sha}"; do
+  [[ "${runtime_invocation}" == *"${expected}"* ]] || {
+    echo "runtime Docker invocation is missing ${expected}" >&2
+    exit 1
+  }
+done
+[[ "${node_invocation}" == *'OPEN_YR_VERSION=0.8.1'* ]] || {
+  echo "node Docker invocation is missing OPEN_YR_VERSION" >&2
+  exit 1
+}
+[[ "${node_invocation}" != *'RRT_RUNTIME_URL='* ]] || {
+  echo "node Docker invocation unexpectedly contains RRT_RUNTIME_URL" >&2
+  exit 1
+}
+
 echo "RRT build contract checks passed"

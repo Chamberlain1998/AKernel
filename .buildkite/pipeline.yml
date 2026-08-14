@@ -1,0 +1,22 @@
+# Buildkite bootstrap for the repository-owned dynamic pipeline.
+
+steps:
+  - label: ":pipeline: Initialize AKernel image build"
+    key: "initialize"
+    command: |
+      bash .buildkite/pipeline.sh | buildkite-agent pipeline upload
+    agents:
+      queue: "default"
+      os: "linux"
+      arch: "amd64"
+    plugins:
+      - kubernetes:
+          podSpec:
+            imagePullSecrets:
+              - name: swr-pull-secret
+            containers:
+              - image: "swr.cn-southwest-2.myhuaweicloud.com/yuanrong-dev/sandbox-packager:v20260506_kubectl"
+                resources:
+                  requests: { cpu: "1", memory: "1Gi" }
+                  limits: { cpu: "2", memory: "2Gi" }
+    timeout_in_minutes: 10

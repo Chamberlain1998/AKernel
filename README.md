@@ -59,6 +59,7 @@ Built-in OpenTelemetry (OTEL) integration provides complete observability out of
 - 💡 [Examples](./sdk/python/examples/) - AKernel SDK examples and use cases
 - 🏗️ [Architecture](#architecture) - System design and components
 - 🚀 [Deployment](./deploy/README.md) - Installation and configuration guide
+- 📦 [Buildkite Images](./.buildkite/README.md) - Reproducible image and deployment artifacts
 
 ### Bootstrap a Cluster
 
@@ -101,6 +102,12 @@ make deploy
 ```
 
 See the [Deployment Guide](./deploy/README.md) for prerequisites, cloud-specific configuration, deployment verification, and cluster cleanup, and the [Build Guide](./CLAUDE.md) for development details.
+
+The repository-owned [Buildkite image pipeline](./.buildkite/README.md) can
+consume either a checksum-published YuanRong release or the artifacts from a
+selected passed YuanRong Buildkite build. It pushes one universal image and
+publishes the YuanRong sandbox SDK plus standalone and Helm deployment
+bundles.
 
 
 ### Create a Sandbox

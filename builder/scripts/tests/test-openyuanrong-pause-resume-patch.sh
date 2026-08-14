@@ -61,4 +61,37 @@ if "${ROOT}/builder/scripts/apply-openyuanrong-pause-resume-patch.sh" "${TMP}/ro
   exit 1
 fi
 
+cp -a "${TMP}/root/yr" "${TMP}/already-patched"
+"${ROOT}/builder/scripts/apply-openyuanrong-pause-resume-patch.sh" \
+  "${TMP}/already-patched" "$(printf 'f%.0s' {1..64})" auto
+
+python3 - "${wheel}" "${TMP}/unknown" <<'PY'
+import pathlib
+import sys
+import zipfile
+
+wheel = pathlib.Path(sys.argv[1])
+root = pathlib.Path(sys.argv[2])
+members = (
+    "yr/deploy/process/config.sh",
+    "yr/functionsystem/deploy/install.sh",
+)
+with zipfile.ZipFile(wheel) as archive:
+    for member in members:
+        archive.extract(member, root)
+PY
+unknown_sha="$(printf 'e%.0s' {1..64})"
+"${ROOT}/builder/scripts/apply-openyuanrong-pause-resume-patch.sh" \
+  "${TMP}/unknown/yr" "${unknown_sha}" auto
+if grep -Fq 'export ENABLE_SANDBOX_PAUSE_RESUME SNAPSHOT_STORAGE_BACKEND CHECKPOINT_DIR' \
+  "${TMP}/unknown/yr/deploy/process/config.sh"; then
+  echo "auto mode unexpectedly modified an unknown core package" >&2
+  exit 1
+fi
+if "${ROOT}/builder/scripts/apply-openyuanrong-pause-resume-patch.sh" \
+  "${TMP}/unknown/yr" "${unknown_sha}" require >/dev/null 2>&1; then
+  echo "require mode unexpectedly accepted an unsupported core package" >&2
+  exit 1
+fi
+
 echo "openYuanRong pause/resume process patch checks passed"

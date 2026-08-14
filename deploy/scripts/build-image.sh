@@ -17,10 +17,13 @@ runtime_image=""
 runtime_profile="${RUNTIME_PROFILE:-rrt}"
 gvisor_release=""
 gvisor_release_base_url=""
+open_yr_version="${OPEN_YR_VERSION:-}"
 open_yr_core_wheel_url="${OPEN_YR_CORE_WHEEL_URL:-}"
 open_yr_core_wheel_sha256="${OPEN_YR_CORE_WHEEL_SHA256:-}"
 open_yr_rrt_wheel_url="${OPEN_YR_RRT_WHEEL_URL:-}"
 open_yr_rrt_wheel_sha256="${OPEN_YR_RRT_WHEEL_SHA256:-}"
+rrt_runtime_url="${RRT_RUNTIME_URL:-}"
+rrt_runtime_sha256="${RRT_RUNTIME_SHA256:-}"
 pip_index_url="${PIP_INDEX_URL:-}"
 uv_python_install_mirror="${UV_PYTHON_INSTALL_MIRROR:-}"
 include_kata="${AKERNEL_INCLUDE_KATA:-true}"
@@ -97,6 +100,10 @@ while [[ $# -gt 0 ]]; do
       gvisor_release_base_url="$2"
       shift 2
       ;;
+    --open-yr-version)
+      open_yr_version="$2"
+      shift 2
+      ;;
     --open-yr-core-wheel-url)
       open_yr_core_wheel_url="$2"
       shift 2
@@ -111,6 +118,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --open-yr-rrt-wheel-sha256)
       open_yr_rrt_wheel_sha256="$2"
+      shift 2
+      ;;
+    --rrt-runtime-url)
+      rrt_runtime_url="$2"
+      shift 2
+      ;;
+    --rrt-runtime-sha256)
+      rrt_runtime_sha256="$2"
       shift 2
       ;;
     --pip-index-url)
@@ -199,9 +214,20 @@ if [[ -n "${open_yr_rrt_wheel_url}" || -n "${open_yr_rrt_wheel_sha256}" ]]; then
     die "OPEN_YR_RRT_WHEEL_URL and OPEN_YR_RRT_WHEEL_SHA256 must be set together"
   fi
 fi
+if [[ -n "${rrt_runtime_url}" || -n "${rrt_runtime_sha256}" ]]; then
+  if [[ -z "${rrt_runtime_url}" || -z "${rrt_runtime_sha256}" ]]; then
+    die "RRT_RUNTIME_URL and RRT_RUNTIME_SHA256 must be set together"
+  fi
+fi
+if [[ -n "${open_yr_rrt_wheel_url}" && -n "${rrt_runtime_url}" ]]; then
+  die "RRT wheel and raw runtime overrides are mutually exclusive"
+fi
 
 info "building ${runtime_image} with runtime profile ${runtime_profile}"
 runtime_build_args=()
+if [[ -n "${open_yr_version}" ]]; then
+  runtime_build_args+=(--build-arg "OPEN_YR_VERSION=${open_yr_version}")
+fi
 if [[ -n "${pip_index_url}" ]]; then
   runtime_build_args+=(--build-arg "PIP_INDEX_URL=${pip_index_url}")
 fi
@@ -214,6 +240,12 @@ if [[ -n "${open_yr_rrt_wheel_url}" ]]; then
   runtime_build_args+=(
     --build-arg "OPEN_YR_RRT_WHEEL_URL=${open_yr_rrt_wheel_url}"
     --build-arg "OPEN_YR_RRT_WHEEL_SHA256=${open_yr_rrt_wheel_sha256}"
+  )
+fi
+if [[ -n "${rrt_runtime_url}" ]]; then
+  runtime_build_args+=(
+    --build-arg "RRT_RUNTIME_URL=${rrt_runtime_url}"
+    --build-arg "RRT_RUNTIME_SHA256=${rrt_runtime_sha256}"
   )
 fi
 docker build \
@@ -232,6 +264,9 @@ node_build_args=(
   --build-arg "AKERNEL_INCLUDE_KATA=${include_kata}"
   --build-arg "AKERNEL_INCLUDE_NVIDIA=${include_nvidia}"
 )
+if [[ -n "${open_yr_version}" ]]; then
+  node_build_args+=(--build-arg "OPEN_YR_VERSION=${open_yr_version}")
+fi
 if [[ -n "${gvisor_release}" ]]; then
   node_build_args+=(--build-arg "GVISOR_RELEASE=${gvisor_release}")
 fi

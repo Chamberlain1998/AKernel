@@ -33,6 +33,8 @@ tunnels. The project overview and deployment quick start are in
 - `sdk/python/tests/` - maintained AKernel SDK tests.
 - `src/yuanrong/` - pinned openYuanRong mirror checkout, including its
   recursive component submodules.
+- `.buildkite/` - universal image pipeline, YuanRong artifact resolver,
+  deployment packager, and their behavior tests.
 - `builder/` - Dockerfiles, service configs, runtime rootfs build, and image
   entrypoint scripts for the public all-in-one image.
 - `deploy/` - Helm charts, standalone scripts, Terraform modules, and
@@ -68,6 +70,7 @@ make token TTL=24h
 make print-env
 make sdk-test
 make deploy-script-check
+make buildkite-check
 make e2e
 ```
 
@@ -166,6 +169,13 @@ authenticate their source where required, verify artifact integrity, and honor
 the same output contract. Docker still validates that the core result is one
 wheel and that the RRT result is an executable x86-64 ELF.
 
+The pause/resume process-script helper applies patches only to its exact known
+legacy core-wheel SHA values. In default `auto` mode it accepts packages that
+already provide the required contract and leaves other unknown packages
+unchanged, so selecting a newer Buildkite wheel does not accidentally apply an
+old source patch. Use its `require` mode when validating a package that must
+provide that legacy standalone process contract.
+
 Inspect the selected local versions without building an image:
 
 ```bash
@@ -175,6 +185,15 @@ make versions
 The final image uses standard OCI labels for the AKernel version and revision.
 Component semantic versions are reported by their binaries, and their exact
 source revisions are traceable through the AKernel commit's submodule gitlinks.
+
+The repository-owned Buildkite pipeline is documented in
+`.buildkite/README.md`. It builds one universal image and treats standalone
+and Helm as deployment bundle selections, not different images. YuanRong
+inputs may come from a checksum-published release or from the `obs-urls.*`
+metadata of a selected passed YuanRong Buildkite build. Cross-pipeline API and
+SWR credentials must come from Buildkite agent or Kubernetes secret
+environments; never add them to pipeline YAML or build inputs. Run
+`make buildkite-check` after changing pipeline scripts or artifact contracts.
 
 ## Deploy
 
