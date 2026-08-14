@@ -139,6 +139,15 @@ PATH="${behavior_tmp}/bin:${PATH}" \
 
 runtime_invocation="$(sed -n '1p' "${behavior_tmp}/docker.log")"
 node_invocation="$(sed -n '2p' "${behavior_tmp}/docker.log")"
+for invocation in "${runtime_invocation}" "${node_invocation}"; do
+  for proxy_name in \
+    HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
+    [[ "${invocation}" == *"--build-arg ${proxy_name}"* ]] || {
+      echo "Docker invocation is missing proxy build arg ${proxy_name}" >&2
+      exit 1
+    }
+  done
+done
 for expected in \
   'OPEN_YR_VERSION=0.8.1' \
   'RRT_RUNTIME_URL=https://artifacts.example.invalid/rrt-runtime-amd64' \

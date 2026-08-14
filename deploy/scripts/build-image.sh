@@ -223,6 +223,12 @@ if [[ -n "${open_yr_rrt_wheel_url}" && -n "${rrt_runtime_url}" ]]; then
   die "RRT wheel and raw runtime overrides are mutually exclusive"
 fi
 
+proxy_build_args=()
+for proxy_name in \
+  HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
+  proxy_build_args+=(--build-arg "${proxy_name}")
+done
+
 info "building ${runtime_image} with runtime profile ${runtime_profile}"
 runtime_build_args=()
 if [[ -n "${open_yr_version}" ]]; then
@@ -250,6 +256,7 @@ if [[ -n "${rrt_runtime_url}" ]]; then
 fi
 docker build \
   -f builder/runtime.Dockerfile \
+  "${proxy_build_args[@]}" \
   "${runtime_build_args[@]}" \
   --target "runtime-${runtime_profile}" \
   -t "${runtime_image}" \
@@ -284,6 +291,7 @@ if [[ -n "${open_yr_core_wheel_url}" || -n "${open_yr_core_wheel_sha256}" ]]; th
 fi
 docker build \
   -f builder/node.Dockerfile \
+  "${proxy_build_args[@]}" \
   "${node_build_args[@]}" \
   -t "${all_in_one_image}" \
   .
