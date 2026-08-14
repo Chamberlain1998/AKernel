@@ -85,7 +85,7 @@ class PipelineTest(unittest.TestCase):
         hook = base64.b64decode(match.group(1)).decode("utf-8")
         self.assertIn("if ! command -v wg", hook)
         self.assertIn("mirrors.aliyun.com", hook)
-        self.assertIn("wireguard-tools iproute2 curl git", hook)
+        self.assertIn("wireguard-tools iproute2 curl git make", hook)
         self.assertIn("if ! ip link show wg0", hook)
         self.assertIn('"$AKERNEL_WG_CONFIG" > /tmp/wg0.conf', hook)
         self.assertIn("wg-quick up /tmp/wg0.conf", hook)
