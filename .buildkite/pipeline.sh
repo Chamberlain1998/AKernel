@@ -19,6 +19,7 @@ include_nvidia="${AKERNEL_INCLUDE_NVIDIA:-true}"
 builder_image="${AKERNEL_BUILDKITE_BUILDER_IMAGE:-swr.cn-southwest-2.myhuaweicloud.com/yuanrong-dev/sandbox-packager:v20260506_kubectl}"
 pip_index_url="${PIP_INDEX_URL:-https://mirrors.huaweicloud.com/repository/pypi/simple}"
 uv_python_install_mirror="${UV_PYTHON_INSTALL_MIRROR:-}"
+egress_hook_base64="IyEvYmluL3NoCnNldCAtZXUKaWYgISBjb21tYW5kIC12IHdnID4vZGV2L251bGwgMj4mMTsgdGhlbgogIHNlZCAtaSAncy9kbC1jZG4uYWxwaW5lbGludXgub3JnL21pcnJvcnMuYWxpeXVuLmNvbS9nJyAvZXRjL2Fway9yZXBvc2l0b3JpZXMKICBhcGsgYWRkIC0tbm8tY2FjaGUgd2lyZWd1YXJkLXRvb2xzIGlwcm91dGUyIGN1cmwgZ2l0ID4vZGV2L251bGwKZmkKaWYgISBpcCBsaW5rIHNob3cgd2cwID4vZGV2L251bGwgMj4mMTsgdGhlbgogIHVtYXNrIDA3NwogIHByaW50ZiAnJXNcbicgIiRBS0VSTkVMX1dHX0NPTkZJRyIgPiAvdG1wL3dnMC5jb25mCiAgd2ctcXVpY2sgdXAgL3RtcC93ZzAuY29uZgpmaQpleHBvcnQgSFRUUF9QUk9YWT1odHRwOi8vMTAuNzcuMC4xOjMxMjgKZXhwb3J0IEhUVFBTX1BST1hZPWh0dHA6Ly8xMC43Ny4wLjE6MzEyOApleHBvcnQgaHR0cF9wcm94eT1odHRwOi8vMTAuNzcuMC4xOjMxMjgKZXhwb3J0IGh0dHBzX3Byb3h5PWh0dHA6Ly8xMC43Ny4wLjE6MzEyOApleHBvcnQgTk9fUFJPWFk9MTI3LjAuMC4xLGxvY2FsaG9zdCwuc3ZjLC5jbHVzdGVyLmxvY2FsLDEwLjAuMC4wLzgsMTAwLjY0LjAuMC8xMCwxNzIuMTYuMC4wLzEyLDE5Mi4xNjguMC4wLzE2LC5teWh1YXdlaWNsb3VkLmNvbSwuaHVhd2VpY2xvdWQuY29tLC5idWlsZGtpdGUuY29tCmV4cG9ydCBub19wcm94eT0iJE5PX1BST1hZIgo="
 
 die() {
   echo "ERROR: $*" >&2
@@ -80,6 +81,7 @@ steps:
     key: "resolve-yuanrong"
     command: |
       set -euo pipefail
+      wg show wg0
       rm -rf artifacts/yuanrong
       if [ "\$\$YR_SOURCE" = "release" ]; then
         python3 .buildkite/scripts/resolve_yuanrong.py \\
@@ -94,6 +96,8 @@ steps:
           --build-number "\$\$YR_BUILD_NUMBER"
       fi
       buildkite-agent artifact upload "artifacts/yuanrong/*"
+    secrets:
+      - AKERNEL_WG_CONFIG
     env:
       YR_SOURCE: "${yr_source}"
       YR_VERSION: "${yr_version}"
@@ -106,14 +110,44 @@ steps:
       arch: "amd64"
     plugins:
       - kubernetes:
-          podSpec:
+          extraVolumeMounts:
+            - name: agent-hooks
+              mountPath: /buildkite/hooks
+          podSpecPatch:
             imagePullSecrets:
               - name: swr-pull-secret
+            initContainers:
+              - name: install-egress-hook
+                image: "${builder_image}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - "printf '%s' '${egress_hook_base64}' | base64 -d > /hooks/environment; chmod 755 /hooks/environment"
+                volumeMounts:
+                  - name: agent-hooks
+                    mountPath: /hooks
             containers:
-              - image: "${builder_image}"
+              - name: checkout
+                env:
+                  - name: BUILDKITE_HOOKS_PATH
+                    value: /buildkite/hooks
+                securityContext:
+                  capabilities:
+                    add: ["NET_ADMIN"]
+              - name: container-0
+                image: "${builder_image}"
+                env:
+                  - name: BUILDKITE_HOOKS_PATH
+                    value: /buildkite/hooks
+                securityContext:
+                  capabilities:
+                    add: ["NET_ADMIN"]
                 resources:
                   requests: { cpu: "1", memory: "1Gi" }
                   limits: { cpu: "2", memory: "2Gi" }
+            volumes:
+              - name: agent-hooks
+                emptyDir: {}
     timeout_in_minutes: 20
 
   - label: ":docker: Build and push universal AKernel image"
@@ -121,11 +155,14 @@ steps:
     depends_on: "resolve-yuanrong"
     command: |
       set -euo pipefail
+      wg show wg0
       rm -rf artifacts/yuanrong artifacts/image
       buildkite-agent artifact download "artifacts/yuanrong/*" . --step resolve-yuanrong
       mkdir -p artifacts/image
       trap 'buildkite-agent artifact upload "artifacts/image/*" || true' EXIT
       bash .buildkite/scripts/build_and_push.sh
+    secrets:
+      - AKERNEL_WG_CONFIG
     env:
       YR_ARTIFACT_MANIFEST: "artifacts/yuanrong/artifact-manifest.json"
       AKERNEL_IMAGE_MANIFEST: "artifacts/image/image-manifest.json"
@@ -141,13 +178,36 @@ steps:
       arch: "amd64"
     plugins:
       - kubernetes:
-          podSpec:
+          extraVolumeMounts:
+            - name: agent-hooks
+              mountPath: /buildkite/hooks
+          podSpecPatch:
             imagePullSecrets:
               - name: swr-pull-secret
+            initContainers:
+              - name: install-egress-hook
+                image: "${builder_image}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - "printf '%s' '${egress_hook_base64}' | base64 -d > /hooks/environment; chmod 755 /hooks/environment"
+                volumeMounts:
+                  - name: agent-hooks
+                    mountPath: /hooks
             containers:
-              - image: "${builder_image}"
+              - name: checkout
+                env:
+                  - name: BUILDKITE_HOOKS_PATH
+                    value: /buildkite/hooks
+                securityContext:
+                  capabilities:
+                    add: ["NET_ADMIN"]
+              - name: container-0
+                image: "${builder_image}"
                 securityContext:
                   privileged: true
+                  capabilities:
+                    add: ["NET_ADMIN"]
                 volumeMounts:
                   - name: docker-graph
                     mountPath: /var/lib/docker
@@ -155,6 +215,8 @@ steps:
                   requests: { cpu: "8", memory: "16Gi" }
                   limits: { cpu: "10", memory: "32Gi" }
                 env:
+                  - name: BUILDKITE_HOOKS_PATH
+                    value: /buildkite/hooks
                   - name: SWR_USERNAME
                     valueFrom:
                       secretKeyRef: { name: swr-credentials, key: username, optional: true }
@@ -165,6 +227,8 @@ steps:
                     valueFrom:
                       secretKeyRef: { name: swr-pull-secret, key: .dockerconfigjson, optional: true }
             volumes:
+              - name: agent-hooks
+                emptyDir: {}
               - name: docker-graph
                 emptyDir:
                   sizeLimit: 100Gi
@@ -175,6 +239,7 @@ steps:
     depends_on: "build-image"
     command: |
       set -euo pipefail
+      wg show wg0
       rm -rf artifacts/yuanrong artifacts/image artifacts/packages
       buildkite-agent artifact download "artifacts/yuanrong/*" . --step resolve-yuanrong
       buildkite-agent artifact download "artifacts/image/image-manifest.json" . --step build-image
@@ -188,6 +253,8 @@ steps:
         --output-dir artifacts/packages \\
         --targets "\$\$AKERNEL_DEPLOY_TARGETS"
       buildkite-agent artifact upload "artifacts/packages/*"
+    secrets:
+      - AKERNEL_WG_CONFIG
     env:
       AKERNEL_DEPLOY_TARGETS: "${normalized_targets}"
     agents:
@@ -196,13 +263,43 @@ steps:
       arch: "amd64"
     plugins:
       - kubernetes:
-          podSpec:
+          extraVolumeMounts:
+            - name: agent-hooks
+              mountPath: /buildkite/hooks
+          podSpecPatch:
             imagePullSecrets:
               - name: swr-pull-secret
+            initContainers:
+              - name: install-egress-hook
+                image: "${builder_image}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - "printf '%s' '${egress_hook_base64}' | base64 -d > /hooks/environment; chmod 755 /hooks/environment"
+                volumeMounts:
+                  - name: agent-hooks
+                    mountPath: /hooks
             containers:
-              - image: "${builder_image}"
+              - name: checkout
+                env:
+                  - name: BUILDKITE_HOOKS_PATH
+                    value: /buildkite/hooks
+                securityContext:
+                  capabilities:
+                    add: ["NET_ADMIN"]
+              - name: container-0
+                image: "${builder_image}"
+                env:
+                  - name: BUILDKITE_HOOKS_PATH
+                    value: /buildkite/hooks
+                securityContext:
+                  capabilities:
+                    add: ["NET_ADMIN"]
                 resources:
                   requests: { cpu: "1", memory: "2Gi" }
                   limits: { cpu: "2", memory: "4Gi" }
+            volumes:
+              - name: agent-hooks
+                emptyDir: {}
     timeout_in_minutes: 20
 YAML

@@ -53,6 +53,26 @@ receives `SWR_USERNAME`, `SWR_PASSWORD`, and Docker configuration from the
 existing `swr-credentials` and `swr-pull-secret` secrets. No registry secret is
 stored in this repository or uploaded as an artifact.
 
+## Restricted GitHub egress
+
+Every job requires the encrypted Buildkite Secret `AKERNEL_WG_CONFIG`. Its
+policy must allow only the `akernel-image` pipeline. The Kubernetes PodSpec
+installs an idempotent environment hook before checkout: it brings up `wg0`
+only when the interface is absent and exports the HTTP(S) proxy at
+`10.77.0.1:3128`. The WireGuard private key remains in Buildkite Secrets and is
+never stored in this repository, pipeline YAML, metadata, logs, or artifacts.
+
+The hook leaves Buildkite, Kubernetes/private networks, and Huawei Cloud/SWR
+domains in `NO_PROXY`; only the proxy server's `10.77.0.1/32` address is routed
+through WireGuard. Both checkout and command containers receive
+`BUILDKITE_HOOKS_PATH` through the Kubernetes PodSpec because Buildkite treats
+that variable as protected. Automatic recursive submodule checkout remains
+disabled; the image job initializes only `src/sandboxd` and `src/distill-fs`.
+
+The current Alpine-based containers install `wireguard-tools`, `iproute2`,
+`curl`, and `git` from the Alibaba Cloud mirror when needed. Replace them with
+a prebuilt checkout image only if measured job startup time justifies it.
+
 ## Outputs
 
 Every successful build uploads:
