@@ -70,16 +70,38 @@ image command container; checkout, YuanRong resolution, and deployment
 packaging do not mount it. `/var/lib/docker` remains a per-job `emptyDir` and
 is never shared between Docker daemons.
 
-The first cached asset is the checksum-pinned Kata Containers 4.0.0 amd64
-static archive. Cache paths include component, version, architecture, digest,
-and filename. A miss downloads into a build-unique temporary file on the PVC,
-verifies SHA-256, and atomically publishes the final entry. A hit is verified
-again by the host downloader and by the Docker stage. Cache entries are
-disposable; deleting one only makes the next image job download it again.
+The cache inventory is deliberately limited to these checksum-pinned,
+immutable download artifacts. Cache paths include component, version,
+architecture, digest, and filename:
+
+| Component | Cache path | Digest | Size |
+| --- | --- | --- | --- |
+| Kata Containers 4.0.0 amd64 static archive | `kata/4.0.0/amd64/2c3b9dfeba355582b40aee462b12916c9740654d0230f696adf719d67b063a8c/kata-static-4.0.0-amd64.tar.zst` | SHA-256 `2c3b9dfeba355582b40aee462b12916c9740654d0230f696adf719d67b063a8c` | 1,952,994,060 bytes |
+| gVisor `runsc` `release-20260706.0` x86_64 binary | `gvisor/release-20260706.0/x86_64/73938c145ebe554cf61a01da455688f4b732eebdf7b1b635bdef5b195868b363d8cb400e3d92ed1f377b78996805556c247a4849583910cb04e92b156053033e/runsc` | SHA-512 `73938c145ebe554cf61a01da455688f4b732eebdf7b1b635bdef5b195868b363d8cb400e3d92ed1f377b78996805556c247a4849583910cb04e92b156053033e` | 130,918,823 bytes |
+| OpenTelemetry Collector contrib 0.120.0 linux amd64 archive | `otelcol-contrib/0.120.0/linux-amd64/81bf885bc9a86705feb3c113c5a356571390e3601eb651ffcf2b3428f6571adb/otelcol-contrib_0.120.0_linux_amd64.tar.gz` | SHA-256 `81bf885bc9a86705feb3c113c5a356571390e3601eb651ffcf2b3428f6571adb` | 80,901,637 bytes |
+
+The three entries total 2,164,814,520 bytes, so the 10 GiB PV remains
+sufficient with 8,572,603,720 bytes available before filesystem overhead.
+Do not expand the PVC to Docker, Cargo, Go, apt, source, or other caches.
+
+The host downloader verifies a hit before reporting it. A miss, or a corrupt
+existing entry, is downloaded to a build-unique temporary file on the PVC,
+verified with its pinned SHA-256 or SHA-512 digest, and atomically replaces the
+destination. Docker mounts the cache read-only and independently verifies the
+same digest before installing each artifact. Cache entries are disposable;
+deleting or corrupting one only makes the next image job safely replace it.
+
+`GVISOR_RELEASE` and `GVISOR_AMD64_SHA512` are a required override pair, as
+are `OTELCOL_CONTRIB_VERSION` and `OTELCOL_CONTRIB_SHA256`: provide both
+values together or neither. `GVISOR_RELEASE_BASE_URL` and an exact
+`OTELCOL_CONTRIB_URL` may select an HTTP(S) mirror without changing the
+version/digest pairing. The gVisor binary remains installed at
+`/usr/local/bin/runsc`; the OpenTelemetry configuration and systemd wiring are
+unchanged.
 
 Outside Buildkite, leave `AKERNEL_DEPENDENCY_CACHE_DIR` unset to retain the
-normal upstream-download path. Set it to a writable directory to opt into the
-same verified cache behavior.
+normal direct-download fallback for Kata, gVisor, and OpenTelemetry. Set it to
+a writable directory to opt into the same verified cache behavior.
 
 ## Restricted GitHub egress
 
