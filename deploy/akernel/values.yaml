@@ -1,5 +1,7 @@
 core:
   createNamespace: false
+  pauseResume:
+    enabled: false
 
 monitor:
   enabled: true

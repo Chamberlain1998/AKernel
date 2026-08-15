@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0
 ulimit -n 32768
 export YR_RUNTIME_BACKEND=sandboxd
+source /root/yr_pause_resume_args.sh
 
 resolve_node_ip() {
     local default_device
@@ -42,37 +43,12 @@ resolve_node_ip() {
 YR_NODE_IP="$(resolve_node_ip)"
 echo "Using ${YR_NODE_IP} as the YuanRong node address"
 
-pause_resume_args=()
-case "${AKERNEL_ENABLE_PAUSE_RESUME:-false}" in
-    true)
-        if [ "${AKS_LOCAL_MODE:-false}" != "true" ]; then
-            echo "AKERNEL_ENABLE_PAUSE_RESUME is currently supported only in standalone mode" >&2
-            exit 1
-        fi
-        if [ ! -f /home/yuanrong/.akernel-rrt-capable ]; then
-            echo "pause/resume requires an image built with the RRT runtime" >&2
-            exit 1
-        fi
-        checkpoint_dir=/home/akernel/sandboxd/root/checkpoints
-        mkdir -p "${checkpoint_dir}"
-        if [ ! -w "${checkpoint_dir}" ]; then
-            echo "checkpoint directory is not writable: ${checkpoint_dir}" >&2
-            exit 1
-        fi
-        pause_resume_args=(
-            --enable_sandbox_pause_resume true
-            --snapshot_storage_backend datasystem
-            --data_system_enable true
-            --checkpoint_dir "${checkpoint_dir}"
-        )
-        ;;
-    false)
-        ;;
-    *)
-        echo "AKERNEL_ENABLE_PAUSE_RESUME must be true or false" >&2
-        exit 1
-        ;;
-esac
+checkpoint_dir=/home/akernel/sandboxd/root/checkpoints
+configure_pause_resume_args \
+    "${AKERNEL_ENABLE_PAUSE_RESUME:-false}" \
+    /home/yuanrong/.akernel-rrt-capable \
+    "${checkpoint_dir}" \
+    "${AKS_LOCAL_MODE:-false}"
 
 # Select the legacy etcd registry or the FunctionMaster HTTP provider.
 if [ "${TRAEFIK_MODE:-etcd}" = "etcd" ]; then
@@ -141,7 +117,7 @@ if [  "x${AKS_LOCAL_MODE}" == "xtrue" ]; then
         --force_low_reliability_instance true \
         --enable_sandbox_router true \
         --enable_direct_routing false \
-        "${pause_resume_args[@]}"
+        "${standalone_pause_resume_args[@]}"
 else
     /usr/bin/yr start \
         --ip_address "${YR_NODE_IP}" \
@@ -178,5 +154,6 @@ else
         --function_proxy_merge_process_enable true \
         --enable_direct_routing false \
         --force_low_reliability_instance true \
+        "${pause_resume_args[@]}" \
         --block true
 fi

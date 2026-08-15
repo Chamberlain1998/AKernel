@@ -17,6 +17,11 @@ leading-wildcard DNS names.
 Experimental whole-device NVIDIA GPU and configurable writable-storage
 requests currently require runsc.
 
+Kubernetes pause/resume is disabled by default. It requires an RRT-profile
+all-in-one image and `core.pauseResume.enabled=true` in the Helm release. Use a
+deployment-specific `node.hostDiskPath` when validating alongside another
+AKernel release so checkpoint and sandboxd state never share a host directory.
+
 Use AKernel when a task needs an isolated remote environment with command
 execution, file operations, interactive PTYs, port forwarding, or reverse
 tunnels. The project overview and deployment quick start are in

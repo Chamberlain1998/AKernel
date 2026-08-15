@@ -23,6 +23,11 @@ image:
   tag: "latest"
   pullPolicy: IfNotPresent
 
+pauseResume:
+  # Requires an image built with the RRT runtime profile. The node process
+  # fails closed when this is enabled on an incompatible image.
+  enabled: false
+
 auth:
   # Existing Secret that contains the JWT signing seed. For
   # `helm template | kubectl apply`, prefer pre-creating this Secret with

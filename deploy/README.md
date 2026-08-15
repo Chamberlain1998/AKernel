@@ -177,6 +177,12 @@ fsync enabled and uses persistent storage by default. Production environments
 that require etcd high availability should point AKernel at an externally
 managed multi-member etcd cluster instead of increasing `etcd.replicas`.
 
+Kubernetes pause/resume is opt-in and requires an image built with the RRT
+runtime profile. Enable it with `core.pauseResume.enabled=true`. The node
+process then uses its DataSystem worker only as the checkpoint snapshot
+backend; ordinary sandbox data-plane behavior is unchanged. The node fails
+closed when the selected image lacks the RRT capability marker.
+
 The core chart defaults master, frontend, and node to the same all-in-one image:
 
 ```yaml

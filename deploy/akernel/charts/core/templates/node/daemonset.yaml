@@ -80,6 +80,8 @@ spec:
           value: "node"
         - name: RUNSC_AKERNEL
           value: "1"
+        - name: AKERNEL_ENABLE_PAUSE_RESUME
+          value: {{ .Values.pauseResume.enabled | default false | quote }}
         - name: ETCD_ADDRESS
           value: {{ get $nodeEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
         - name: ETCD_PORT
