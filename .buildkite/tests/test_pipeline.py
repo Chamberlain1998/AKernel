@@ -80,8 +80,10 @@ class PipelineTest(unittest.TestCase):
         self.assertIsNotNone(match, command)
         return base64.b64decode(match.group(1)).decode("utf-8")
 
-    def assert_restricted_egress(self, step):
-        self.assertEqual(step["secrets"], ["AKERNEL_WG_CONFIG"])
+    def assert_restricted_egress(
+        self, step, expected_secrets=("AKERNEL_WG_CONFIG",)
+    ):
+        self.assertEqual(step["secrets"], list(expected_secrets))
         kubernetes = step["plugins"][0]["kubernetes"]
         self.assertEqual(
             kubernetes["extraVolumeMounts"],
@@ -150,7 +152,11 @@ class PipelineTest(unittest.TestCase):
         )
         self.assertIn("artifact upload \"artifacts/packages/*\"", steps[2]["command"])
 
-        for step in steps:
+        self.assert_restricted_egress(
+            steps[0],
+            ("AKERNEL_WG_CONFIG", "YR_BUILDKITE_API_TOKEN"),
+        )
+        for step in steps[1:]:
             self.assert_restricted_egress(step)
 
         pod = steps[1]["plugins"][0]["kubernetes"]["podSpecPatch"]

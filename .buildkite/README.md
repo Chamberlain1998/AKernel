@@ -23,15 +23,17 @@ YR_BUILD_NUMBER=221
 ```
 
 The resolver reads the build's `obs-urls.*` metadata and does not scrape job
-logs. Its job environment must provide one of these read-capable API tokens,
-in priority order:
+logs. The encrypted Buildkite Secret `YR_BUILDKITE_API_TOKEN`, restricted to
+the `akernel-image` pipeline, is injected only into the resolver job. The
+resolver accepts these read-capable environment variables in priority order:
 
 1. `YR_BUILDKITE_API_TOKEN`
 2. `BUILDKITE_API_TOKEN`
 3. `BUILDKITE_PACKAGE_UPLOAD_TOKEN`
 
-Do not pass an API token as a build environment override. Configure it in the
-Buildkite agent or cluster secret environment instead.
+Do not pass an API token as a build environment override. Store it in the
+pipeline-scoped encrypted Secret instead; image-build and packaging jobs do
+not receive it.
 
 ## Image and deployment inputs
 

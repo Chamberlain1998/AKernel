@@ -101,6 +101,7 @@ steps:
       buildkite-agent artifact upload "artifacts/yuanrong/*"
     secrets:
       - AKERNEL_WG_CONFIG
+      - YR_BUILDKITE_API_TOKEN
     env:
       YR_SOURCE: "${yr_source}"
       YR_VERSION: "${yr_version}"
