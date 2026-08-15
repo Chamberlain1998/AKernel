@@ -91,7 +91,8 @@ RUN make release
 
 FROM ${DISTILL_FS_BUILD_IMAGE} AS distill-fs-builder
 ENV DEBIAN_FRONTEND=noninteractive \
-    CARGO_NET_GIT_FETCH_WITH_CLI=true
+    CARGO_NET_GIT_FETCH_WITH_CLI=true \
+    CARGO_NET_RETRY=5
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -105,7 +106,18 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /src/distill-fs
 COPY ./src/distill-fs/ ./
-RUN cargo build --locked --release --bin distill_fs
+RUN set -eux; \
+    for attempt in 1 2 3; do \
+        if cargo build --locked --release --bin distill_fs; then \
+            exit 0; \
+        fi; \
+        if [ "${attempt}" -eq 3 ]; then \
+            exit 1; \
+        fi; \
+        rm -rf /usr/local/cargo/git/db/nydus-* \
+            /usr/local/cargo/git/checkouts/nydus-*; \
+        sleep "$((attempt * 2))"; \
+    done
 
 FROM ${AKERNEL_NODE_BASE_IMAGE}
 ARG AKERNEL_RUNTIME_PROFILE
