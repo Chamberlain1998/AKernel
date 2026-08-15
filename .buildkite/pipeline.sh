@@ -19,7 +19,8 @@ include_nvidia="${AKERNEL_INCLUDE_NVIDIA:-true}"
 builder_image="${AKERNEL_BUILDKITE_BUILDER_IMAGE:-swr.cn-southwest-2.myhuaweicloud.com/yuanrong-dev/sandbox-packager:v20260506_kubectl}"
 pip_index_url="${PIP_INDEX_URL:-https://mirrors.huaweicloud.com/repository/pypi/simple}"
 uv_python_install_mirror="${UV_PYTHON_INSTALL_MIRROR:-}"
-egress_hook_base64="IyEvYmluL3NoCnNldCAtZXUKaWYgISBjb21tYW5kIC12IHdnID4vZGV2L251bGwgMj4mMTsgdGhlbgogIHNlZCAtaSAncy9kbC1jZG4uYWxwaW5lbGludXgub3JnL21pcnJvcnMuYWxpeXVuLmNvbS9nJyAvZXRjL2Fway9yZXBvc2l0b3JpZXMKICBhcGsgYWRkIC0tbm8tY2FjaGUgd2lyZWd1YXJkLXRvb2xzIGlwcm91dGUyIGN1cmwgZ2l0IG1ha2UgPi9kZXYvbnVsbApmaQppZiAhIGlwIGxpbmsgc2hvdyB3ZzAgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgdW1hc2sgMDc3CiAgcHJpbnRmICclc1xuJyAiJEFLRVJORUxfV0dfQ09ORklHIiA+IC90bXAvd2cwLmNvbmYKICB3Zy1xdWljayB1cCAvdG1wL3dnMC5jb25mCmZpCmV4cG9ydCBIVFRQX1BST1hZPWh0dHA6Ly8xMC43Ny4wLjE6MzEyOApleHBvcnQgSFRUUFNfUFJPWFk9aHR0cDovLzEwLjc3LjAuMTozMTI4CmV4cG9ydCBodHRwX3Byb3h5PWh0dHA6Ly8xMC43Ny4wLjE6MzEyOApleHBvcnQgaHR0cHNfcHJveHk9aHR0cDovLzEwLjc3LjAuMTozMTI4CmV4cG9ydCBOT19QUk9YWT0xMjcuMC4wLjEsbG9jYWxob3N0LC5zdmMsLmNsdXN0ZXIubG9jYWwsMTAuMC4wLjAvOCwxMDAuNjQuMC4wLzEwLDE3Mi4xNi4wLjAvMTIsMTkyLjE2OC4wLjAvMTYsLm15aHVhd2VpY2xvdWQuY29tLC5odWF3ZWljbG91ZC5jb20sLmJ1aWxka2l0ZS5jb20sYnVpbGRraXRlYXJ0aWZhY3RzLmNvbSwuYnVpbGRraXRlYXJ0aWZhY3RzLmNvbSwuYW1hem9uYXdzLmNvbQpleHBvcnQgbm9fcHJveHk9IiROT19QUk9YWSIK"
+wg_endpoint_override="${AKERNEL_WG_ENDPOINT_OVERRIDE:-159.138.22.93:443}"
+egress_hook_base64="IyEvYmluL3NoCnNldCAtZXUKaWYgISBjb21tYW5kIC12IHdnID4vZGV2L251bGwgMj4mMTsgdGhlbgogIHNlZCAtaSAncy9kbC1jZG4uYWxwaW5lbGludXgub3JnL21pcnJvcnMuYWxpeXVuLmNvbS9nJyAvZXRjL2Fway9yZXBvc2l0b3JpZXMKICBhcGsgYWRkIC0tbm8tY2FjaGUgd2lyZWd1YXJkLXRvb2xzIGlwcm91dGUyIGN1cmwgZ2l0IG1ha2UgPi9kZXYvbnVsbApmaQppZiAhIGlwIGxpbmsgc2hvdyB3ZzAgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgdW1hc2sgMDc3CiAgcHJpbnRmICclc1xuJyAiJEFLRVJORUxfV0dfQ09ORklHIiA+IC90bXAvd2cwLmNvbmYKICBpZiBbIC1uICIke0FLRVJORUxfV0dfRU5EUE9JTlRfT1ZFUlJJREU6LX0iIF07IHRoZW4KICAgIGF3ayAtdiBlbmRwb2ludD0iJEFLRVJORUxfV0dfRU5EUE9JTlRfT1ZFUlJJREUiICcKICAgICAgQkVHSU4geyB1cGRhdGVkID0gMCB9CiAgICAgIC9eW1s6c3BhY2U6XV0qRW5kcG9pbnRbWzpzcGFjZTpdXSo9LyB7CiAgICAgICAgcHJpbnQgIkVuZHBvaW50ID0gIiBlbmRwb2ludAogICAgICAgIHVwZGF0ZWQgPSAxCiAgICAgICAgbmV4dAogICAgICB9CiAgICAgIHsgcHJpbnQgfQogICAgICBFTkQgeyBpZiAoIXVwZGF0ZWQpIGV4aXQgMSB9CiAgICAnIC90bXAvd2cwLmNvbmYgPiAvdG1wL3dnMC5jb25mLm92ZXJyaWRlCiAgICBtdiAvdG1wL3dnMC5jb25mLm92ZXJyaWRlIC90bXAvd2cwLmNvbmYKICBmaQogIHdnLXF1aWNrIHVwIC90bXAvd2cwLmNvbmYKZmkKZXhwb3J0IEhUVFBfUFJPWFk9aHR0cDovLzEwLjc3LjAuMTozMTI4CmV4cG9ydCBIVFRQU19QUk9YWT1odHRwOi8vMTAuNzcuMC4xOjMxMjgKZXhwb3J0IGh0dHBfcHJveHk9aHR0cDovLzEwLjc3LjAuMTozMTI4CmV4cG9ydCBodHRwc19wcm94eT1odHRwOi8vMTAuNzcuMC4xOjMxMjgKZXhwb3J0IE5PX1BST1hZPTEyNy4wLjAuMSxsb2NhbGhvc3QsLnN2YywuY2x1c3Rlci5sb2NhbCwxMC4wLjAuMC84LDEwMC42NC4wLjAvMTAsMTcyLjE2LjAuMC8xMiwxOTIuMTY4LjAuMC8xNiwubXlodWF3ZWljbG91ZC5jb20sLmh1YXdlaWNsb3VkLmNvbSwuYnVpbGRraXRlLmNvbSxidWlsZGtpdGVhcnRpZmFjdHMuY29tLC5idWlsZGtpdGVhcnRpZmFjdHMuY29tLC5hbWF6b25hd3MuY29tCmV4cG9ydCBub19wcm94eT0iJE5PX1BST1hZIgo="
 
 die() {
   echo "ERROR: $*" >&2
@@ -50,6 +51,8 @@ case "${include_kata}" in true|false) ;; *) die "AKERNEL_INCLUDE_KATA must be tr
 case "${include_nvidia}" in true|false) ;; *) die "AKERNEL_INCLUDE_NVIDIA must be true or false" ;; esac
 [[ "${builder_image}" =~ ^[A-Za-z0-9._:/@-]+$ ]] || \
   die "AKERNEL_BUILDKITE_BUILDER_IMAGE is invalid"
+[[ "${wg_endpoint_override}" =~ ^[A-Za-z0-9.:-]+$ ]] || \
+  die "AKERNEL_WG_ENDPOINT_OVERRIDE is invalid"
 [[ "${pip_index_url}" =~ ^https?://[^[:space:]\"]+$ ]] || \
   die "PIP_INDEX_URL is invalid"
 if [[ -n "${uv_python_install_mirror}" ]]; then
@@ -131,6 +134,8 @@ steps:
                 env:
                   - name: BUILDKITE_HOOKS_PATH
                     value: /buildkite/hooks
+                  - name: AKERNEL_WG_ENDPOINT_OVERRIDE
+                    value: "${wg_endpoint_override}"
                 securityContext:
                   capabilities:
                     add: ["NET_ADMIN"]
@@ -139,6 +144,8 @@ steps:
                 env:
                   - name: BUILDKITE_HOOKS_PATH
                     value: /buildkite/hooks
+                  - name: AKERNEL_WG_ENDPOINT_OVERRIDE
+                    value: "${wg_endpoint_override}"
                 securityContext:
                   capabilities:
                     add: ["NET_ADMIN"]
@@ -200,6 +207,8 @@ steps:
                 env:
                   - name: BUILDKITE_HOOKS_PATH
                     value: /buildkite/hooks
+                  - name: AKERNEL_WG_ENDPOINT_OVERRIDE
+                    value: "${wg_endpoint_override}"
                 securityContext:
                   capabilities:
                     add: ["NET_ADMIN"]
@@ -220,6 +229,8 @@ steps:
                 env:
                   - name: BUILDKITE_HOOKS_PATH
                     value: /buildkite/hooks
+                  - name: AKERNEL_WG_ENDPOINT_OVERRIDE
+                    value: "${wg_endpoint_override}"
                   - name: SWR_USERNAME
                     valueFrom:
                       secretKeyRef: { name: swr-credentials, key: username, optional: true }
@@ -290,6 +301,8 @@ steps:
                 env:
                   - name: BUILDKITE_HOOKS_PATH
                     value: /buildkite/hooks
+                  - name: AKERNEL_WG_ENDPOINT_OVERRIDE
+                    value: "${wg_endpoint_override}"
                 securityContext:
                   capabilities:
                     add: ["NET_ADMIN"]
@@ -298,6 +311,8 @@ steps:
                 env:
                   - name: BUILDKITE_HOOKS_PATH
                     value: /buildkite/hooks
+                  - name: AKERNEL_WG_ENDPOINT_OVERRIDE
+                    value: "${wg_endpoint_override}"
                 securityContext:
                   capabilities:
                     add: ["NET_ADMIN"]

@@ -120,6 +120,13 @@ containers receive
 that variable as protected. Automatic recursive submodule checkout remains
 disabled; the image job initializes only `src/sandboxd` and `src/distill-fs`.
 
+The PodSpec also supplies `AKERNEL_WG_ENDPOINT_OVERRIDE=159.138.22.93:443`.
+Before starting WireGuard, the hook rewrites only the `Endpoint` entry in the
+temporary client configuration; it neither reads nor replaces the encrypted
+client private key. The Hong Kong security group must allow UDP 443 only from
+the Guiyang Buildkite egress address. Squid remains bound exclusively to
+`10.77.0.1:3128` and is never exposed as a public proxy.
+
 The current Alpine-based containers install `wireguard-tools`, `iproute2`,
 `curl`, and `git` from the Alibaba Cloud mirror when needed. Replace them with
 a prebuilt checkout image only if measured job startup time justifies it.

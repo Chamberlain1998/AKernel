@@ -7,6 +7,7 @@ import os
 import pathlib
 import re
 import subprocess
+import tempfile
 import unittest
 
 import yaml
@@ -51,6 +52,7 @@ class PipelineTest(unittest.TestCase):
             "AKERNEL_IMAGE_TAG",
             "AKERNEL_INCLUDE_KATA",
             "AKERNEL_INCLUDE_NVIDIA",
+            "AKERNEL_WG_ENDPOINT_OVERRIDE",
         ):
             environment.pop(name, None)
         environment.update(overrides)
@@ -70,6 +72,14 @@ class PipelineTest(unittest.TestCase):
         self.assertIsInstance(pipeline, dict)
         return pipeline
 
+    def decode_egress_hook(self, step) -> str:
+        command = step["plugins"][0]["kubernetes"]["podSpecPatch"][
+            "initContainers"
+        ][0]["command"][2]
+        match = re.search(r"printf '%s' '([A-Za-z0-9+/=]+)'", command)
+        self.assertIsNotNone(match, command)
+        return base64.b64decode(match.group(1)).decode("utf-8")
+
     def assert_restricted_egress(self, step):
         self.assertEqual(step["secrets"], ["AKERNEL_WG_CONFIG"])
         kubernetes = step["plugins"][0]["kubernetes"]
@@ -82,10 +92,7 @@ class PipelineTest(unittest.TestCase):
 
         init = pod["initContainers"][0]
         self.assertEqual(init["name"], "install-egress-hook")
-        command = init["command"][2]
-        match = re.search(r"printf '%s' '([A-Za-z0-9+/=]+)'", command)
-        self.assertIsNotNone(match, command)
-        hook = base64.b64decode(match.group(1)).decode("utf-8")
+        hook = self.decode_egress_hook(step)
         self.assertIn("if ! command -v wg", hook)
         self.assertIn("mirrors.aliyun.com", hook)
         self.assertIn("wireguard-tools iproute2 curl git make", hook)
@@ -274,6 +281,73 @@ class PipelineTest(unittest.TestCase):
         self.assertIn('test "$$denied" = "403"', step["command"])
         self.assertEqual(step["agents"]["queue"], "default")
         self.assertEqual(step["agents"]["arch"], "amd64")
+
+    def test_wireguard_endpoint_override_reaches_checkout_and_commands(self):
+        generated = self.parse_pipeline(self.run_generator())
+        bootstrap = yaml.safe_load(BOOTSTRAP.read_text(encoding="utf-8"))
+        steps = bootstrap["steps"] + generated["steps"]
+
+        expected = {
+            "name": "AKERNEL_WG_ENDPOINT_OVERRIDE",
+            "value": "159.138.22.93:443",
+        }
+        for step in steps:
+            with self.subTest(step=step["label"]):
+                containers = step["plugins"][0]["kubernetes"]["podSpecPatch"][
+                    "containers"
+                ]
+                for container in containers:
+                    self.assertIn(expected, container["env"])
+
+    def test_wireguard_endpoint_override_rewrites_config_before_start(self):
+        generated = self.parse_pipeline(self.run_generator())
+        bootstrap = yaml.safe_load(BOOTSTRAP.read_text(encoding="utf-8"))
+        steps = bootstrap["steps"] + generated["steps"]
+        original_endpoint = "159.138.22.93:51820"
+        target_endpoint = "159.138.22.93:443"
+
+        for step in steps:
+            with self.subTest(step=step["label"]), tempfile.TemporaryDirectory() as tmp:
+                temp = pathlib.Path(tmp)
+                binary_dir = temp / "bin"
+                binary_dir.mkdir()
+                for name, body in {
+                    "wg": "#!/bin/sh\nexit 0\n",
+                    "ip": "#!/bin/sh\nexit 1\n",
+                    "wg-quick": "#!/bin/sh\ncat \"$2\"\n",
+                }.items():
+                    binary = binary_dir / name
+                    binary.write_text(body, encoding="utf-8")
+                    binary.chmod(0o755)
+
+                config_path = temp / "wg0.conf"
+                hook = self.decode_egress_hook(step).replace(
+                    "/tmp/wg0.conf", str(config_path)
+                )
+                environment = os.environ.copy()
+                environment.update(
+                    {
+                        "PATH": f"{binary_dir}:/usr/bin:/bin",
+                        "AKERNEL_WG_CONFIG": (
+                            "[Interface]\nPrivateKey = test-only\n"
+                            "[Peer]\nPublicKey = test-only\n"
+                            f"Endpoint = {original_endpoint}\n"
+                        ),
+                        "AKERNEL_WG_ENDPOINT_OVERRIDE": target_endpoint,
+                    }
+                )
+                result = subprocess.run(
+                    ["/bin/sh"],
+                    input=hook,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    env=environment,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(f"Endpoint = {target_endpoint}", result.stdout)
+                self.assertNotIn(original_endpoint, result.stdout)
 
     def test_dependency_cache_uses_topology_aware_local_storage(self):
         resources = {
