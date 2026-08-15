@@ -350,6 +350,12 @@ No separate `AKERNEL_GATEWAY_ADDRESS` is required for the default standalone
 layout. Standalone uses `akerneldev/all-in-one:latest` by default; pass `IMAGE`
 to test a locally built or differently tagged image.
 
+Kubernetes deployments that expose Frontend control traffic and SandboxRouter
+on separate listeners should set `AKERNEL_SERVER_ADDRESS` to Frontend and
+`AKERNEL_SANDBOX_ROUTER_ADDRESS` to the direct SandboxRouter listener. The
+port-specific variable affects only `Sandbox.get_port_url()`; PTY, file, and
+reverse-tunnel traffic retain the Frontend/gateway endpoint.
+
 Standalone GPU testing additionally requires NVIDIA Container Toolkit on the
 host and `AKERNEL_ENABLE_GPU=true`. sandboxd uses the read-only cgroup
 node-resource provider in standalone mode; Kubernetes deployments retain the

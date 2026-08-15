@@ -21,9 +21,10 @@ The public SDK accepts a compact ``AKERNEL_SERVER_ADDRESS`` value:
 * ``host:port``: shared-port mode.  Frontend API, exec WebSocket, and public
   port-forward URLs all use the explicit port with TLS by default.
 
-``AKERNEL_GATEWAY_ADDRESS`` remains an explicit override for standalone or
-custom network topologies.  When it is set without a scheme, it is treated as a
-plain HTTP/WebSocket gateway.
+``AKERNEL_GATEWAY_ADDRESS`` remains an explicit override for PTY, file, and
+reverse-tunnel WebSocket traffic. ``AKERNEL_SANDBOX_ROUTER_ADDRESS`` can
+independently select the direct SandboxRouter endpoint used only by public
+port-forward URLs. Overrides without a scheme use plain HTTP/WebSocket.
 """
 
 from __future__ import annotations
@@ -108,6 +109,13 @@ def _gateway_override_raw() -> str:
     )
 
 
+def _sandbox_router_override_raw() -> str:
+    return (
+        os.environ.get("AKERNEL_SANDBOX_ROUTER_ADDRESS", "").strip()
+        or os.environ.get("YR_SANDBOX_ROUTER_ADDRESS", "").strip()
+    )
+
+
 def api_endpoint_from_env() -> Endpoint:
     """Return the frontend API endpoint derived from AKERNEL_SERVER_ADDRESS."""
     return _parse_endpoint(
@@ -118,7 +126,7 @@ def api_endpoint_from_env() -> Endpoint:
 
 
 def gateway_endpoint_from_env() -> Endpoint:
-    """Return the public port-forwarding gateway endpoint.
+    """Return the legacy shared gateway endpoint.
 
     An explicit gateway override is parsed as plain HTTP by default because
     standalone exposes Traefik's web entrypoint without TLS.  Without an
@@ -147,6 +155,23 @@ def gateway_endpoint_from_env() -> Endpoint:
         scheme="http",
         explicit_port=False,
     )
+
+
+def port_endpoint_from_env() -> Endpoint:
+    """Return the endpoint used only by public sandbox port URLs.
+
+    A direct SandboxRouter override is independent from the gateway used by
+    PTY, file, and reverse-tunnel traffic. Existing deployments without the
+    new variable retain the legacy shared-gateway behavior.
+    """
+    override = _sandbox_router_override_raw()
+    if override:
+        return _parse_endpoint(
+            override,
+            default_port=DEFAULT_PUBLIC_PORT,
+            default_scheme="http",
+        )
+    return gateway_endpoint_from_env()
 
 
 def exec_endpoint_from_env() -> Endpoint:

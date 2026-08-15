@@ -24,7 +24,7 @@ from collections.abc import Mapping, Sequence
 from types import MappingProxyType
 from typing import Literal, cast
 
-from ._addresses import Endpoint, api_endpoint_from_env, gateway_endpoint_from_env
+from ._addresses import Endpoint, api_endpoint_from_env, port_endpoint_from_env
 from ._backends.base import BackendSession, SandboxSpec
 from ._backends.registry import load_backend
 from ._sandbox_resources import normalize_xpu, validate_storage_mb
@@ -352,7 +352,7 @@ class Sandbox:
                 f"{sorted(self._forwarded_ports)}"
             )
 
-        gateway = gateway_endpoint_from_env()
+        gateway = port_endpoint_from_env()
         if internal:
             pod_ip, gateway_port = _get_traefik_internal_ip(gateway)
             direct = Endpoint(

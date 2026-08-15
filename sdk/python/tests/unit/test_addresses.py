@@ -20,6 +20,7 @@ from akernel_sdk._addresses import (
     api_endpoint_from_env,
     exec_endpoint_from_env,
     gateway_endpoint_from_env,
+    port_endpoint_from_env,
 )
 
 
@@ -77,6 +78,25 @@ class AddressConfigTest(unittest.TestCase):
             self.assertEqual(
                 endpoint_tuple(exec_endpoint_from_env()),
                 ("https", "gw.example.com", 9443, True),
+            )
+
+    def test_sandbox_router_override_only_changes_public_port_endpoint(self):
+        with patch.dict(
+            os.environ,
+            {
+                "AKERNEL_SERVER_ADDRESS": "https://frontend.example:8888",
+                "AKERNEL_GATEWAY_ADDRESS": "https://frontend.example:8888",
+                "AKERNEL_SANDBOX_ROUTER_ADDRESS": "http://router.example:8080",
+            },
+            clear=True,
+        ):
+            self.assertEqual(
+                endpoint_tuple(port_endpoint_from_env()),
+                ("http", "router.example", 8080, False),
+            )
+            self.assertEqual(
+                endpoint_tuple(exec_endpoint_from_env()),
+                ("https", "frontend.example", 8888, True),
             )
 
     def test_internal_yr_gateway_does_not_override_exec_endpoint(self):

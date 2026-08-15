@@ -55,8 +55,12 @@ Address behavior is deterministic:
 - A host or IP without a port uses HTTPS/WSS on 443 for the frontend and HTTP
   on 80 for public sandbox port URLs.
 - `host:port` uses that port as a shared HTTPS/WSS endpoint.
-- `AKERNEL_GATEWAY_ADDRESS` overrides the port-forwarding and exec gateway for
-  standalone or custom topologies. An override without a scheme uses HTTP/WS.
+- `AKERNEL_GATEWAY_ADDRESS` overrides the PTY, file, and reverse-tunnel gateway
+  for standalone or custom topologies. An override without a scheme uses
+  HTTP/WS.
+- `AKERNEL_SANDBOX_ROUTER_ADDRESS` independently overrides the direct
+  SandboxRouter endpoint used only by public sandbox port URLs. It falls back
+  to the legacy gateway behavior when omitted.
 
 The legacy actor backend is optional. Install and select it before importing
 `akernel_sdk`:
@@ -313,9 +317,9 @@ with Sandbox(port_forwardings=[8080]) as sandbox:
     server.kill()
 ```
 
-`get_port_url()` rejects undeclared ports. Pass `internal=True` only when a
-deployment operator explicitly wants the direct Traefik address instead of the
-public gateway.
+`get_port_url()` rejects undeclared ports. Deployments with separate frontend
+and SandboxRouter listeners should set `AKERNEL_SANDBOX_ROUTER_ADDRESS`; this
+does not change the endpoint used by PTY, file, or reverse-tunnel traffic.
 
 ## Reverse tunnels
 

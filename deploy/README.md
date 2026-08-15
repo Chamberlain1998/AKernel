@@ -203,7 +203,7 @@ client:
 
 ```bash
 export AKERNEL_SERVER_ADDRESS=https://<frontend-host>:8888
-export AKERNEL_GATEWAY_ADDRESS=http://<frontend-host>:8080
+export AKERNEL_SANDBOX_ROUTER_ADDRESS=http://<frontend-host>:8080
 ```
 
 The second endpoint serves `/{sandbox-id}/{container-port}/...` from the

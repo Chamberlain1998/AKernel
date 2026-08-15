@@ -325,6 +325,23 @@ class SandboxTest(unittest.TestCase):
                 sandbox.get_port_url(9090)
             sandbox.kill()
 
+    def test_get_port_url_prefers_sandbox_router_address(self):
+        with patch.dict(
+            os.environ,
+            {
+                "AKERNEL_SERVER_ADDRESS": "https://frontend.example.com:8888",
+                "AKERNEL_GATEWAY_ADDRESS": "https://frontend.example.com:8888",
+                "AKERNEL_SANDBOX_ROUTER_ADDRESS": "http://router.example.com:8080",
+            },
+            clear=True,
+        ):
+            sandbox = Sandbox(port_forwardings=[8080])
+            self.assertEqual(
+                sandbox.get_port_url(8080),
+                "http://router.example.com:8080/physical-id/8080",
+            )
+            sandbox.kill()
+
 
 if __name__ == "__main__":
     unittest.main()
