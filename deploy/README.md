@@ -194,9 +194,25 @@ image:
 Each component can still override `master.image`, `frontend.image`, or
 `node.image` when a split-image deployment is required.
 
-### Public Traefik entrypoints
+### Frontend API and SandboxRouter endpoints
 
-For cloud deployments, use Traefik with two public entrypoints:
+The frontend Service exposes two distinct ports. The control API uses TLS on
+8888, while public sandbox ports go directly to SandboxRouter over HTTP on
+8080. Configure both addresses explicitly when the Service is reachable by a
+client:
+
+```bash
+export AKERNEL_SERVER_ADDRESS=https://<frontend-host>:8888
+export AKERNEL_GATEWAY_ADDRESS=http://<frontend-host>:8080
+```
+
+The second endpoint serves `/{sandbox-id}/{container-port}/...` from the
+authoritative SandboxRouter cache/read-through path. Platform JWTs are not
+forwarded to user processes. Pause/resume route publication does not depend on
+Traefik.
+
+Traefik remains available for legacy cloud profiles that need a single public
+load balancer with two entrypoints:
 
 ```yaml
 traefik:
@@ -208,9 +224,9 @@ traefik:
 ```
 
 The `websecure` entrypoint serves the AKernel frontend API and exec websocket
-over HTTPS/WSS. The `web` entrypoint serves function port-forwarding traffic
-over plain HTTP/WS. With this layout the Python SDK only needs the LoadBalancer
-host or IP:
+over HTTPS/WSS. The `web` entrypoint forwards sandbox port traffic to
+SandboxRouter over plain HTTP/WS. With this compatibility layout the Python SDK
+only needs the LoadBalancer host or IP:
 
 ```bash
 export AKERNEL_SERVER_ADDRESS=<traefik-load-balancer-ip>

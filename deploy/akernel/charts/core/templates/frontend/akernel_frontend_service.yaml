@@ -23,6 +23,10 @@ spec:
       port: 8888
       targetPort: 8888
       protocol: TCP
+    - name: sandbox-router
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
   selector:
     app: akernel-frontend
   sessionAffinity: None

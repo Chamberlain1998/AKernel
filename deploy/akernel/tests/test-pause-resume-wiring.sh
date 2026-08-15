@@ -71,8 +71,39 @@ def node_pause_resume_value(path: str) -> str:
     )
 
 
+def frontend_documents(path: str):
+    with open(path, encoding="utf-8") as stream:
+        documents = list(yaml.safe_load_all(stream))
+    deployment = next(
+        document
+        for document in documents
+        if document
+        and document.get("kind") == "Deployment"
+        and document["metadata"]["name"] == "akernel-frontend"
+    )
+    service = next(
+        document
+        for document in documents
+        if document
+        and document.get("kind") == "Service"
+        and document["metadata"]["name"] == "akernel-frontend"
+    )
+    return deployment, service
+
+
 assert node_pause_resume_value(sys.argv[1]) == "true"
 assert node_pause_resume_value(sys.argv[2]) == "false"
+
+frontend, service = frontend_documents(sys.argv[1])
+container_ports = frontend["spec"]["template"]["spec"]["containers"][0]["ports"]
+assert {"name": "sandbox-router", "containerPort": 8080} in container_ports
+service_ports = service["spec"]["ports"]
+assert {
+    "name": "sandbox-router",
+    "port": 8080,
+    "targetPort": 8080,
+    "protocol": "TCP",
+} in service_ports
 PY
 
 echo "Kubernetes pause/resume wiring contract passed"
