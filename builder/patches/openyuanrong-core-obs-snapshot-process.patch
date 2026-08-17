@@ -1,0 +1,82 @@
+--- a/deploy/process/config.sh
++++ b/deploy/process/config.sh
+@@ -88,7 +88,8 @@
+ enable_traefik_registry:,enable_traefik_provider:,traefik_domain:,traefik_etcd_prefix:,traefik_lease_ttl:,traefik_http_entrypoint:,traefik_http_entry_point:,traefik_enable_tls:,traefik_servers_transport:,traefik_forward_timeout_ms:,\
+ meta_service_address:,\
+ system_tenant_id:,\
+-enable_sandbox_pause_resume:,snapshot_storage_backend:,checkpoint_dir:,\
++enable_sandbox_pause_resume:,snapshot_storage_backend:,checkpoint_dir:,snapshot_obs_endpoint:,snapshot_obs_bucket:,\
++snapshot_obs_access_key:,snapshot_obs_secret_key:,snapshot_obs_security_token:,snapshot_obs_use_https:,snapshot_obs_path_style:,\
+ help"
+ FS_LOG_CONFIG="{\"filepath\": \"{{logConfigPath}}\",\"level\": \"{{logLevel}}\",\"compress\": {{logCompressEnable}}, \
+ \"rolling\": {\"maxsize\": {{logRollingMaxSize}},\"maxfiles\": {{logRollingMaxFiles}},\"retentionDays\": {{logRollingRetentionDays}}}, \
+@@ -178,6 +179,13 @@
+ ENABLE_SANDBOX_PAUSE_RESUME="false"
+ SNAPSHOT_STORAGE_BACKEND=""
+ CHECKPOINT_DIR=""
++SNAPSHOT_OBS_ENDPOINT=""
++SNAPSHOT_OBS_BUCKET=""
++SNAPSHOT_OBS_ACCESS_KEY=""
++SNAPSHOT_OBS_SECRET_KEY=""
++SNAPSHOT_OBS_SECURITY_TOKEN=""
++SNAPSHOT_OBS_USE_HTTPS="true"
++SNAPSHOT_OBS_PATH_STYLE="false"
+ PULL_RESOURCE_INTERVAL=1000
+ BLOCK=false
+ ENABLE_MULTI_MASTER="false"
+@@ -991,6 +999,13 @@
+     --enable_sandbox_pause_resume) ENABLE_SANDBOX_PAUSE_RESUME=$2 && shift 2 ;;
+     --snapshot_storage_backend) SNAPSHOT_STORAGE_BACKEND=$2 && shift 2 ;;
+     --checkpoint_dir) CHECKPOINT_DIR=$2 && shift 2 ;;
++    --snapshot_obs_endpoint) SNAPSHOT_OBS_ENDPOINT=$2 && shift 2 ;;
++    --snapshot_obs_bucket) SNAPSHOT_OBS_BUCKET=$2 && shift 2 ;;
++    --snapshot_obs_access_key) SNAPSHOT_OBS_ACCESS_KEY=$2 && shift 2 ;;
++    --snapshot_obs_secret_key) SNAPSHOT_OBS_SECRET_KEY=$2 && shift 2 ;;
++    --snapshot_obs_security_token) SNAPSHOT_OBS_SECURITY_TOKEN=$2 && shift 2 ;;
++    --snapshot_obs_use_https) SNAPSHOT_OBS_USE_HTTPS=$2 && shift 2 ;;
++    --snapshot_obs_path_style) SNAPSHOT_OBS_PATH_STYLE=$2 && shift 2 ;;
+     --) shift && break ;;
+     *) log_error "Invalid option: $1" && return 1 ;;
+     esac
+@@ -1003,10 +1018,28 @@
+     return 1
+   fi
+   if [ "X${ENABLE_SANDBOX_PAUSE_RESUME}" = "Xtrue" ]; then
+-    if [ "X${SNAPSHOT_STORAGE_BACKEND}" != "Xdatasystem" ]; then
+-      log_error "standalone pause/resume requires snapshot_storage_backend=datasystem"
+-      return 1
+-    fi
++    case "${SNAPSHOT_STORAGE_BACKEND}" in
++      datasystem) ;;
++      obs)
++        if [ -z "${SNAPSHOT_OBS_ENDPOINT}" ] || [ -z "${SNAPSHOT_OBS_BUCKET}" ] || \
++           [ -z "${SNAPSHOT_OBS_ACCESS_KEY}" ] || [ -z "${SNAPSHOT_OBS_SECRET_KEY}" ]; then
++          log_error "OBS snapshot storage requires endpoint, bucket, access key, and secret key"
++          return 1
++        fi
++        case "${SNAPSHOT_OBS_USE_HTTPS}" in
++          true|false) ;;
++          *) log_error "snapshot_obs_use_https can only be 'true' or 'false'" && return 1 ;;
++        esac
++        case "${SNAPSHOT_OBS_PATH_STYLE}" in
++          true|false) ;;
++          *) log_error "snapshot_obs_path_style can only be 'true' or 'false'" && return 1 ;;
++        esac
++        ;;
++      *)
++        log_error "snapshot_storage_backend must be datasystem or obs"
++        return 1
++        ;;
++    esac
+     if [ -z "${CHECKPOINT_DIR}" ] || [ "${CHECKPOINT_DIR#/}" = "${CHECKPOINT_DIR}" ]; then
+       log_error "checkpoint_dir must be an absolute path when pause/resume is enabled"
+       return 1
+@@ -1837,6 +1870,8 @@
+   export ENABLE_RUNTIME_LAUNCHER RUNTIME_LAUNCHER_SOCK
+   export RUNTIME_INIT_CALL_TIMEOUT_SECONDS IS_SCHEDULE_TOLERATE_ABNORMAL STATE_STORAGE_TYPE
+   export ENABLE_SANDBOX_PAUSE_RESUME SNAPSHOT_STORAGE_BACKEND CHECKPOINT_DIR
++  export SNAPSHOT_OBS_ENDPOINT SNAPSHOT_OBS_BUCKET SNAPSHOT_OBS_ACCESS_KEY SNAPSHOT_OBS_SECRET_KEY
++  export SNAPSHOT_OBS_SECURITY_TOKEN SNAPSHOT_OBS_USE_HTTPS SNAPSHOT_OBS_PATH_STYLE
+   export MERGE_PROCESS_ENABLE FUNCTION_PROXY_MERGE_PROCESS_ENABLE DATA_SYSTEM_ENABLE DRIVER_GATEWAY_ENABLE SSH_ENABLE ENABLE_TCP_TUNNEL
+   export FRONTEND_SSH_AUTH_ENABLE FRONTEND_SSH_ADDRESS FRONTEND_SSH_HOST_KEY FRONTEND_SSH_AUTHORIZED_KEYS
+   export FRONTEND_SSH_BACKEND_KEY FRONTEND_SSH_MAX_CONNECTIONS TCP_TUNNEL_PORT TCP_TUNNEL_MAX_CONNECTIONS

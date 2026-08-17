@@ -27,6 +27,21 @@ pauseResume:
   # Requires an image built with the RRT runtime profile. The node process
   # fails closed when this is enabled on an incompatible image.
   enabled: false
+  snapshotStorage:
+    # DataSystem preserves the existing standalone and single-node behavior.
+    # Select obs when snapshots must survive termination of their source Pod.
+    backend: datasystem
+    obs:
+      endpoint: ""
+      bucket: ""
+      # This Secret must already exist in the release namespace. The chart
+      # never accepts or renders credential values directly.
+      existingSecret: ""
+      accessKeyKey: access-key
+      secretKeyKey: secret-key
+      securityTokenKey: security-token
+      useHttps: true
+      pathStyle: false
 
 auth:
   # Existing Secret that contains the JWT signing seed. For
@@ -105,6 +120,7 @@ frontend:
   service:
     type: ClusterIP
     annotations: {}
+    sandboxRouterPort: 8080
   # Image defaults to the global all-in-one image. Set these only to override.
   image:
     repository: ""

@@ -266,9 +266,12 @@ RUN set -eux; \
 
 COPY ./builder/patches/openyuanrong-core-6dfa49681774-pause-resume-process.patch /usr/local/patches/
 COPY ./builder/patches/openyuanrong-core-454473b64447-pause-resume-process.patch /usr/local/patches/
+COPY ./builder/patches/openyuanrong-core-obs-snapshot-process.patch /usr/local/patches/
 COPY ./builder/scripts/apply-openyuanrong-pause-resume-patch.sh /usr/local/bin/
+COPY ./builder/scripts/apply-openyuanrong-obs-snapshot-patch.sh /usr/local/bin/
 RUN set -eux; \
-    chmod 0755 /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh; \
+    chmod 0755 /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh \
+      /usr/local/bin/apply-openyuanrong-obs-snapshot-patch.sh; \
     if [ -n "${OPEN_YR_CORE_WHEEL_SHA256}" ]; then \
       /usr/local/bin/apply-openyuanrong-pause-resume-patch.sh \
         "${YR_INSTALLATION_DIR}" "${OPEN_YR_CORE_WHEEL_SHA256}"; \

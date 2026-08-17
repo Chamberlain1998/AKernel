@@ -110,6 +110,8 @@ spec:
               value: {{ get $frontendEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
             - name: ETCD_PORT
               value: {{ get $frontendEtcd "port" | default "2379" | quote }}
+            - name: SANDBOX_ROUTER_PORT
+              value: {{ .Values.frontend.service.sandboxRouterPort | default 8080 | quote }}
             {{- if .Values.monitoring.prometheusEndpoint }}
             - name: PROMETHEUS_ENDPOINT
               value: {{ .Values.monitoring.prometheusEndpoint | quote }}
@@ -132,7 +134,7 @@ spec:
             - name: http
               containerPort: 8888
             - name: sandbox-router
-              containerPort: 8080
+              containerPort: {{ .Values.frontend.service.sandboxRouterPort | default 8080 }}
           livenessProbe:
             httpGet:
               path: /healthz

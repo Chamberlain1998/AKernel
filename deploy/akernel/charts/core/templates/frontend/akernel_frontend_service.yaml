@@ -24,8 +24,8 @@ spec:
       targetPort: 8888
       protocol: TCP
     - name: sandbox-router
-      port: 8080
-      targetPort: 8080
+      port: {{ .Values.frontend.service.sandboxRouterPort | default 8080 }}
+      targetPort: {{ .Values.frontend.service.sandboxRouterPort | default 8080 }}
       protocol: TCP
   selector:
     app: akernel-frontend

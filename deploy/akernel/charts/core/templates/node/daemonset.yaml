@@ -82,6 +82,40 @@ spec:
           value: "1"
         - name: AKERNEL_ENABLE_PAUSE_RESUME
           value: {{ .Values.pauseResume.enabled | default false | quote }}
+        {{- $snapshotStorage := .Values.pauseResume.snapshotStorage | default dict }}
+        {{- $snapshotBackend := get $snapshotStorage "backend" | default "datasystem" }}
+        - name: AKERNEL_SNAPSHOT_STORAGE_BACKEND
+          value: {{ $snapshotBackend | quote }}
+        {{- if eq $snapshotBackend "obs" }}
+        {{- $snapshotObs := get $snapshotStorage "obs" | default dict }}
+        {{- $snapshotObsEndpoint := required "pauseResume.snapshotStorage.obs.endpoint is required for the OBS backend" (get $snapshotObs "endpoint") }}
+        {{- $snapshotObsBucket := required "pauseResume.snapshotStorage.obs.bucket is required for the OBS backend" (get $snapshotObs "bucket") }}
+        {{- $snapshotObsSecret := required "pauseResume.snapshotStorage.obs.existingSecret is required for the OBS backend" (get $snapshotObs "existingSecret") }}
+        - name: AKERNEL_SNAPSHOT_OBS_ENDPOINT
+          value: {{ $snapshotObsEndpoint | quote }}
+        - name: AKERNEL_SNAPSHOT_OBS_BUCKET
+          value: {{ $snapshotObsBucket | quote }}
+        - name: AKERNEL_SNAPSHOT_OBS_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $snapshotObsSecret | quote }}
+              key: {{ get $snapshotObs "accessKeyKey" | default "access-key" | quote }}
+        - name: AKERNEL_SNAPSHOT_OBS_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $snapshotObsSecret | quote }}
+              key: {{ get $snapshotObs "secretKeyKey" | default "secret-key" | quote }}
+        - name: AKERNEL_SNAPSHOT_OBS_SECURITY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ $snapshotObsSecret | quote }}
+              key: {{ get $snapshotObs "securityTokenKey" | default "security-token" | quote }}
+              optional: true
+        - name: AKERNEL_SNAPSHOT_OBS_USE_HTTPS
+          value: {{ get $snapshotObs "useHttps" | quote }}
+        - name: AKERNEL_SNAPSHOT_OBS_PATH_STYLE
+          value: {{ get $snapshotObs "pathStyle" | quote }}
+        {{- end }}
         - name: ETCD_ADDRESS
           value: {{ get $nodeEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
         - name: ETCD_PORT

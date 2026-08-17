@@ -62,6 +62,8 @@ done
 patch --directory="${yr_root}" --strip=1 --forward --batch --dry-run < "${patch_file}" >/dev/null
 patch --directory="${yr_root}" --strip=1 --forward --batch < "${patch_file}" >/dev/null
 
+"${script_dir}/apply-openyuanrong-obs-snapshot-patch.sh" "${yr_root}"
+
 grep -Fq 'export ENABLE_SANDBOX_PAUSE_RESUME SNAPSHOT_STORAGE_BACKEND CHECKPOINT_DIR' \
   "${yr_root}/deploy/process/config.sh"
 grep -Fq -- '--snapshot_storage_backend="${SNAPSHOT_STORAGE_BACKEND}"' \

@@ -2,6 +2,17 @@ core:
   createNamespace: false
   pauseResume:
     enabled: false
+    snapshotStorage:
+      backend: datasystem
+      obs:
+        endpoint: ""
+        bucket: ""
+        existingSecret: ""
+        accessKeyKey: access-key
+        secretKeyKey: secret-key
+        securityTokenKey: security-token
+        useHttps: true
+        pathStyle: false
 
 monitor:
   enabled: true
