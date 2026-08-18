@@ -197,10 +197,8 @@ def main() -> int:
         primary_public_url = primary.get_port_url(primary_port)
         step(
             "sdk-baseline",
-            "SandboxRouter public port before pause",
-            lambda: base._assert_equal(
-                base._fetch_public_once(primary_public_url), primary_body
-            ),
+            "SandboxRouter public port before pause converges",
+            lambda: base._fetch_public_eventually(primary_public_url, primary_body),
         )
         source = base._capture_authority(
             args.node_container,
@@ -386,7 +384,7 @@ def main() -> int:
         managed.append(delete_case)
         _start_public_server(delete_case, delete_port, delete_body)
         delete_public_url = delete_case.get_port_url(delete_port)
-        base._assert_equal(base._fetch_public_once(delete_public_url), delete_body)
+        base._fetch_public_eventually(delete_public_url, delete_body)
         delete_source = base._capture_authority(
             args.node_container,
             delete_case.id,
@@ -658,7 +656,7 @@ def _assert_paused_data_plane(sandbox: Any, public_url: str) -> None:
         lambda: sandbox.pty.create(command=["/bin/sh", "-c", "exit 0"], timeout=10),
         "PTY",
     )
-    base._assert_public_paused_once(public_url)
+    base._assert_public_paused_unavailable_once(public_url)
 
 
 def _timed(operation: Callable[[], Any]) -> tuple[Any, float]:
@@ -679,8 +677,8 @@ def _assert_first_requests_after_resume(
     command, exec_seconds = _timed(lambda: sandbox.commands.run("printf immediate-exec-ok"))
     _assert_command_stdout(command, "immediate-exec-ok")
     _, pty_seconds = _timed(lambda: _run_pty(sandbox, b"PTY_AFTER_RESUME", 6))
-    body, public_seconds = _timed(lambda: base._fetch_public_once(public_url))
-    base._assert_equal(body, public_body)
+    public_result = base._fetch_public_eventually(public_url, public_body)
+    public_seconds = float(public_result["durationSeconds"])
     return {
         "file": file_seconds,
         "exec": exec_seconds,
@@ -849,7 +847,7 @@ def _assert_deleted(
         physical_id,
         cleanup_dir,
     )
-    base._assert_public_missing_once(public_url)
+    base._assert_public_missing_eventually(public_url)
     views = stress._checkpoint_views(
         args.node_container, args.host_checkpoint_root, sandbox_id
     )

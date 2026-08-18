@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${SCRIPT_DIR}/config"
 DATA_DIR="${SCRIPT_DIR}/data"
 FRONTEND_PORT="8888"
+SANDBOX_ROUTER_PORT="8080"
 ETCD_PORT="${ETCD_PORT:-2379}"
 ETCD_PEER_PORT="${ETCD_PEER_PORT:-2378}"
 NODE_CONTAINER_NAME="akernel-node"
@@ -287,8 +288,9 @@ prepare_host_network_modules() {
 # from the gateway enters this network namespace through PREROUTING.
 start_node_container() {
     log_info "Starting container: ${NODE_CONTAINER_NAME}"
-    # FunctionMaster's HTTP provider publishes the per-sandbox routes required
-    # by reverse tunnels; the legacy etcd mode cannot publish those routes.
+    # Standalone exposes lifecycle/exec/tunnel traffic through the frontend and
+    # public sandbox ports directly through SandboxRouter. Keep the legacy ETCD
+    # registry disabled; Traefik does not attach the optional HTTP provider.
 
     "${DOCKER_PREFIX[@]}" ${DOCKER_CMD} run -d \
         --name "${NODE_CONTAINER_NAME}" \
@@ -365,7 +367,7 @@ http:
     sandbox-router:
       entryPoints:
         - websecure
-      rule: "PathPrefix(\`/api/sandbox\`) || PathPrefix(\`/direct/\`) || Path(\`/direct\`)"
+      rule: "PathPrefix(\`/api/sandbox\`) || PathPrefix(\`/direct/\`) || Path(\`/direct\`) || PathPrefix(\`/tunnel\`)"
       priority: 100
       service: akernel-frontend
       tls: {}
@@ -385,7 +387,6 @@ EOF
 }
 
 start_traefik_container() {
-    local provider_endpoint="$1"
     local dynamic_config="${DATA_DIR}/traefik/dynamic.yml"
 
     log_info "Starting container: ${TRAEFIK_CONTAINER_NAME}"
@@ -398,8 +399,6 @@ start_traefik_container() {
         --entryPoints.web.address=:80 \
         --entryPoints.websecure.address=:443 \
         --providers.file.filename=/etc/traefik/dynamic.yml \
-        --providers.http.endpoint="${provider_endpoint}" \
-        --providers.http.pollInterval=1s \
         --log.level=INFO \
         --accessLog=true \
         --accessLog.format=json \
@@ -451,6 +450,7 @@ show_status() {
     echo "  Traefik logs:  ${DOCKER_CMD} logs -f ${TRAEFIK_CONTAINER_NAME}"
     echo "  Enter AKernel: ${DOCKER_CMD} exec -it ${NODE_CONTAINER_NAME} bash"
     echo "  AKernel IP:    ${node_ip}"
+    echo "  SandboxRouter: http://${node_ip}:${SANDBOX_ROUTER_PORT}"
     echo "  Traefik IP:    ${traefik_ip}"
     echo "  SDK token:     ${TOKEN_FILE}"
 }
@@ -473,9 +473,7 @@ if [[ -z "${NODE_IP}" ]]; then
     exit 1
 fi
 write_traefik_config "${NODE_IP}"
-TRAEFIK_PROVIDER_ENDPOINT="http://${NODE_IP}:22770/global-scheduler/traefik/config"
-log_info "Using FunctionMaster route provider: ${TRAEFIK_PROVIDER_ENDPOINT}"
-start_traefik_container "${TRAEFIK_PROVIDER_ENDPOINT}"
+start_traefik_container
 TRAEFIK_IP="$(container_ip "${TRAEFIK_CONTAINER_NAME}")"
 if [[ -z "${TRAEFIK_IP}" ]]; then
     log_error "Could not determine the Traefik container IP"
@@ -486,4 +484,5 @@ show_status "${NODE_IP}" "${TRAEFIK_IP}"
 
 log_info "AKernel started successfully in standalone mode"
 log_info "Set AKERNEL_SERVER_ADDRESS=${TRAEFIK_IP}"
+log_info "Set AKERNEL_SANDBOX_ROUTER_ADDRESS=${NODE_IP}:${SANDBOX_ROUTER_PORT}"
 log_info "Set AKERNEL_TOKEN=\$(cat ${TOKEN_FILE})"

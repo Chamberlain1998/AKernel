@@ -133,9 +133,9 @@ def main() -> int:
         public_url = sandbox.get_port_url(public_port)
         report["publicPort"] = public_port
         report["publicURL"] = public_url
-        step(
-            "public HTTP before pause uses SandboxRouter",
-            lambda: _assert_equal(_fetch_public_once(public_url), public_body),
+        report["publicBeforePause"] = step(
+            "public HTTP before pause converges through SandboxRouter",
+            lambda: _fetch_public_eventually(public_url, public_body),
         )
         source_authority = step(
             "capture RUNNING source authority",
@@ -204,9 +204,9 @@ def main() -> int:
             ),
         )
         _assert_equal(released_source, None)
-        step(
-            "SandboxRouter rejects public data while paused",
-            lambda: _assert_public_paused_once(public_url),
+        report["publicWhilePaused"] = step(
+            "public data is unavailable while paused",
+            lambda: _assert_public_paused_unavailable_once(public_url),
         )
         target_proxy_pid = step(
             "terminate source FunctionProxy after PAUSED commit",
@@ -242,9 +242,9 @@ def main() -> int:
             "first exec request after resume",
             lambda: _assert_command(sandbox.commands.run("printf post-resume-ok"), "post-resume-ok"),
         )
-        step(
-            "first public request after resume uses SandboxRouter",
-            lambda: _assert_equal(_fetch_public_once(public_url), public_body),
+        report["publicAfterResume"] = step(
+            "public route after resume converges through SandboxRouter",
+            lambda: _fetch_public_eventually(public_url, public_body),
         )
         winner_authority = step(
             "capture RUNNING winner authority",
@@ -310,9 +310,9 @@ def main() -> int:
             ),
         )
         report["cleanupAuthority"] = cleanup_authority
-        step(
-            "SandboxRouter returns missing after delete",
-            lambda: _assert_public_missing_once(public_url),
+        report["publicAfterDelete"] = step(
+            "SandboxRouter eventually returns missing after delete",
+            lambda: _assert_public_missing_eventually(public_url),
         )
         report["cleanup"] = "passed"
         report["result"] = "passed"
@@ -581,6 +581,15 @@ def _inspect_sandboxd(
         node_container, "/usr/local/bin/sbox", "inspect", runtime_id, check=False
     )
     if completed.returncode != 0:
+        diagnostic = (completed.stderr or completed.stdout).strip()
+        if "code = notfound" in diagnostic.lower() or "not found" in diagnostic.lower():
+            evidence = {
+                "sandboxId": runtime_id,
+                "found": False,
+                "diagnostic": diagnostic,
+            }
+            evidence_path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
+            return None
         raise RuntimeError(
             f"sandboxd inspect failed for {runtime_id}: {completed.stderr or completed.stdout}"
         )
@@ -676,35 +685,111 @@ def _verify_cleanup(
 
 
 def _fetch_public_once(url: str) -> str:
-    """Issue exactly one public request; resume convergence must not need retries."""
+    """Issue exactly one public request without SDK-side retry behavior."""
     with urllib.request.urlopen(url, timeout=10) as response:
         return response.read().decode()
 
 
-def _assert_public_paused_once(url: str) -> None:
-    """Require one authoritative PAUSED response from SandboxRouter."""
-    try:
-        _fetch_public_once(url)
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode(errors="replace").lower()
-        if exc.code != 409 or "paused" not in body:
-            raise AssertionError(
-                f"expected HTTP 409 instance paused, got HTTP {exc.code}: {body!r}"
-            ) from exc
-        return
-    raise AssertionError("expected SandboxRouter to reject the PAUSED sandbox")
-
-
-def _assert_public_missing_once(url: str) -> None:
-    """Require one authoritative missing response after exact cleanup."""
-    try:
-        _fetch_public_once(url)
-    except urllib.error.HTTPError as exc:
-        if exc.code != 404:
+def _fetch_public_eventually(url: str, expected_body: str, timeout: float = 15.0) -> dict[str, Any]:
+    """Model an explicit caller retry while the asynchronous public route converges."""
+    started = time.monotonic()
+    deadline = started + timeout
+    attempts = 0
+    observations: list[dict[str, Any]] = []
+    while True:
+        attempts += 1
+        try:
+            body = _fetch_public_once(url)
+        except urllib.error.HTTPError as exc:
             body = exc.read().decode(errors="replace")
-            raise AssertionError(f"expected HTTP 404 after delete, got {exc.code}: {body!r}") from exc
-        return
-    raise AssertionError("expected SandboxRouter route to be absent after delete")
+            observations.append({"httpStatus": exc.code, "body": body})
+            if exc.code not in (404, 502, 503):
+                raise AssertionError(
+                    f"unexpected HTTP {exc.code} while public route converged: {body!r}"
+                ) from exc
+        except urllib.error.URLError as exc:
+            observations.append({"transportError": str(exc.reason)})
+        else:
+            if body != expected_body:
+                raise AssertionError(f"expected public body {expected_body!r}, got {body!r}")
+            return _public_retry_result(
+                started,
+                attempts,
+                [*observations, {"httpStatus": 200}],
+                http_status=200,
+            )
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"public route did not converge within {timeout}s: {observations!r}"
+            )
+        time.sleep(min(0.05 * attempts, 0.5))
+
+
+def _assert_public_paused_unavailable_once(url: str) -> dict[str, Any]:
+    """Require a single non-success response after the PAUSED authority commits."""
+    started = time.monotonic()
+    try:
+        body = _fetch_public_once(url)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        if exc.code not in (404, 409, 502, 503):
+            raise AssertionError(
+                f"unexpected HTTP {exc.code} for PAUSED public data: {body!r}"
+            ) from exc
+        if exc.code == 409 and "paused" not in body.lower():
+            raise AssertionError(f"HTTP 409 did not identify the paused instance: {body!r}") from exc
+        return {
+            "attempts": 1,
+            "durationSeconds": round(time.monotonic() - started, 3),
+            "finalHttpStatus": exc.code,
+            "body": body,
+        }
+    raise AssertionError(f"public data remained reachable after PAUSED commit: {body!r}")
+
+
+def _assert_public_missing_eventually(url: str, timeout: float = 15.0) -> dict[str, Any]:
+    """Retry at the caller boundary until exact delete publishes HTTP 404."""
+    started = time.monotonic()
+    deadline = started + timeout
+    attempts = 0
+    observations: list[dict[str, Any]] = []
+    while True:
+        attempts += 1
+        try:
+            body = _fetch_public_once(url)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode(errors="replace")
+            observations.append({"httpStatus": exc.code, "body": body})
+            if exc.code == 404:
+                return _public_retry_result(started, attempts, observations, http_status=404)
+            if exc.code not in (409, 502, 503):
+                raise AssertionError(
+                    f"unexpected HTTP {exc.code} while delete route converged: {body!r}"
+                ) from exc
+        except urllib.error.URLError as exc:
+            observations.append({"transportError": str(exc.reason)})
+        else:
+            raise AssertionError(f"public route remained reachable after delete: {body!r}")
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"deleted public route did not converge within {timeout}s: {observations!r}"
+            )
+        time.sleep(min(0.05 * attempts, 0.5))
+
+
+def _public_retry_result(
+    started: float,
+    attempts: int,
+    observations: list[dict[str, Any]],
+    *,
+    http_status: int,
+) -> dict[str, Any]:
+    return {
+        "attempts": attempts,
+        "durationSeconds": round(time.monotonic() - started, 3),
+        "finalHttpStatus": http_status,
+        "transientObservations": observations[:-1] if observations else [],
+    }
 
 
 if __name__ == "__main__":

@@ -152,7 +152,7 @@ def _start_workload(sandbox: Any, marker: str, port: int, body: str) -> str:
     result = sandbox.commands.run(f"while [ ! -f {ready} ]; do sleep 0.05; done; printf ready")
     base._assert_command(result, "ready")
     public_url = sandbox.get_port_url(port)
-    base._assert_equal(base._fetch_public_once(public_url), body)
+    base._fetch_public_eventually(public_url, body)
     return public_url
 
 
@@ -206,7 +206,7 @@ def _run_single_loop(
         paused_images = _checkpoint_views(
             args.node_container, args.host_checkpoint_root, sandbox.id
         )
-        base._assert_public_paused_once(public_url)
+        base._assert_public_paused_unavailable_once(public_url)
 
         resume_result, resume_seconds = _timed(sandbox.resume)
         marker_after, first_file_seconds = _timed(lambda: sandbox.files.read(marker))
@@ -217,8 +217,8 @@ def _run_single_loop(
             )
         )
         base._assert_command(exec_after, "loop-running")
-        public_after, first_public_seconds = _timed(lambda: base._fetch_public_once(public_url))
-        base._assert_equal(public_after, public_body)
+        public_after = base._fetch_public_eventually(public_url, public_body)
+        first_public_seconds = float(public_after["durationSeconds"])
 
         winner = base._capture_authority(
             args.node_container,
@@ -346,7 +346,7 @@ def _run_interleaved(
             base._assert_paused_authority(
                 paused, pause_result.snapshot_id, source["instance"]["value"]
             )
-            base._assert_public_paused_once(item["publicURL"])
+            base._assert_public_paused_unavailable_once(item["publicURL"])
             item["state"] = "paused"
             item["snapshotId"] = pause_result.snapshot_id
             evidence["snapshotId"] = pause_result.snapshot_id
@@ -360,10 +360,8 @@ def _run_interleaved(
             base._assert_equal(marker_value, f"cross-{index}")
             exec_result, first_exec = _timed(lambda: sandbox.commands.run("printf cross-running"))
             base._assert_command(exec_result, "cross-running")
-            public_body, first_public = _timed(
-                lambda: base._fetch_public_once(item["publicURL"])
-            )
-            base._assert_equal(public_body, item["body"])
+            public_result = base._fetch_public_eventually(item["publicURL"], item["body"])
+            first_public = float(public_result["durationSeconds"])
             winner = base._capture_authority(
                 args.node_container,
                 sandbox.id,

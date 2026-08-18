@@ -34,5 +34,12 @@ grep -Eq '^PassEnvironment=.*AKERNEL_ENABLE_PAUSE_RESUME' "${service}"
 grep -Fq 'AKERNEL_ENABLE_PAUSE_RESUME="${AKERNEL_ENABLE_PAUSE_RESUME:-false}"' "${start}"
 grep -Fq 'PathPrefix(\`/api/sandbox/v1\`)' "${start}"
 grep -Fq 'PathPrefix(\`/direct\`)' "${start}"
+grep -Fq 'PathPrefix(\`/tunnel\`)' "${start}"
+grep -Fq 'SANDBOX_ROUTER_PORT="8080"' "${start}"
+grep -Fq 'AKERNEL_SANDBOX_ROUTER_ADDRESS=${NODE_IP}:${SANDBOX_ROUTER_PORT}' "${start}"
+if grep -Fq -- '--providers.http.endpoint=' "${start}"; then
+    echo "standalone must not depend on per-instance Traefik routes" >&2
+    exit 1
+fi
 
 echo "pause/resume standalone wiring contract passed"

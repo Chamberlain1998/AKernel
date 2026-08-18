@@ -145,11 +145,16 @@ AKernel 当前 `src/sandboxd` gitlink 尚不包含 Checkpoint/Restore RPC。实�
 gitlink 更新到已验证的 checkpoint 分支提交，而不是从同级未跟踪的 `sandboxd/` 工作树
 复制文件。目标实现必须保留以下契约：
 
-- `CheckpointRequest`: `sandbox_id=1`, `checkpoint_dir=2`
-- `RestoreRequest`: `config=1`, `checkpoint_dir=2`
-- `RestoreResponse`: `sandbox_id=1`
+- `CheckpointRequest`: `id=1`, `checkpoint_dir=2`, `checkpoint_id=6`,
+  `leave_running=7`；未实现的 `timeout/compress/trace_id` 字段号保持 reserved
+- `RestoreRequest`: `config=1`, `checkpoint_dir=2`, `checkpoint_id=3`,
+  `expected_sha256=4`, `expected_size=5`
+- `Restore` 直接返回 `StartResponse`，其中 `id=3`、`ports=4` 是恢复后的真实物理事实；
+  不再保留第二套 `RestoreResponse` 或 `RestoreCheckpoint` RPC
 - 只允许 `runsc` checkpoint/restore
 - checkpoint 目录必须位于 sandboxd 管理根之下
+- checkpoint/restore 中间相位与 deterministic identity 只存在于 sandboxd 内部持久模型，
+  不通过公共 `SandboxState` 或 metadata API 暴露
 
 ### 构建设计
 
