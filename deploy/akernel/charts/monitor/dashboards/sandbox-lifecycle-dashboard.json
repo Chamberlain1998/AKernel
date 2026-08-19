@@ -1,27 +1,19 @@
 {
   "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
+    "list": []
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 2055146016272384,
+  "id": null,
   "links": [],
   "panels": [
     {
       "datasource": {
+        "type": "prometheus",
         "uid": "${prometheus_ds}"
       },
-      "description": "Peak number of sandboxes in RUNNING state during the selected time window, including historical data",
+      "description": "Current running sandboxes from the explicit sandbox lifecycle gauge.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -33,16 +25,15 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
+                "value": null
               }
             ]
-          },
-          "unit": "none"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 5,
         "w": 8,
         "x": 0,
         "y": 0
@@ -50,10 +41,9 @@
       "id": 1,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "horizontal",
-        "percentChangeColorMode": "standard",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -61,7 +51,6 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
@@ -72,9 +61,10 @@
             "uid": "${prometheus_ds}"
           },
           "editorMode": "code",
-          "expr": "count(last_over_time(yr_sandbox_lifecycle_status_enum[2m]) == 2) or vector(0)",
-          "legendFormat": "",
-          "range": true,
+          "expr": "sum(sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"}) or vector(0)",
+          "instant": true,
+          "legendFormat": "Running",
+          "range": false,
           "refId": "A"
         }
       ],
@@ -83,30 +73,32 @@
     },
     {
       "datasource": {
+        "type": "prometheus",
         "uid": "${prometheus_ds}"
       },
-      "description": "Number of sandboxes that exited normally with COMPLETED status during the selected time window",
+      "description": "Aggregate CPU utilization as a percentage of configured sandbox CPU limits.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue",
-                "value": 0
+                "color": "green",
+                "value": null
               }
             ]
           },
-          "unit": "none"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 5,
         "w": 8,
         "x": 8,
         "y": 0
@@ -114,10 +106,9 @@
       "id": 2,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "horizontal",
-        "percentChangeColorMode": "standard",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -125,7 +116,6 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
@@ -135,19 +125,23 @@
           "datasource": {
             "uid": "${prometheus_ds}"
           },
-          "expr": "count(last_over_time(yr_sandbox_lifecycle_status_enum[7d]) == 3) or vector(0)",
-          "legendFormat": "",
+          "editorMode": "code",
+          "expr": "(100 * sum(sandbox_cpu_usage{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1)) / sum(sandbox_cpu_limit{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1))) or vector(0)",
+          "instant": true,
+          "legendFormat": "CPU",
+          "range": false,
           "refId": "A"
         }
       ],
-      "title": "Completed Sandboxes",
+      "title": "CPU Usage",
       "type": "stat"
     },
     {
       "datasource": {
+        "type": "prometheus",
         "uid": "${prometheus_ds}"
       },
-      "description": "Number of sandboxes that exited abnormally during the selected time window, including historical data",
+      "description": "Aggregate memory utilization as a percentage of configured sandbox memory limits.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -158,17 +152,17 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": 0
+                "color": "green",
+                "value": null
               }
             ]
           },
-          "unit": "none"
+          "unit": "percent"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
+        "h": 5,
         "w": 8,
         "x": 16,
         "y": 0
@@ -176,10 +170,9 @@
       "id": 3,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
-        "orientation": "horizontal",
-        "percentChangeColorMode": "standard",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -187,7 +180,6 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
         "textMode": "auto",
         "wideLayout": true
       },
@@ -197,19 +189,23 @@
           "datasource": {
             "uid": "${prometheus_ds}"
           },
-          "expr": "count(last_over_time(yr_sandbox_lifecycle_status_enum[7d]) == 4) or vector(0)",
-          "legendFormat": "",
+          "editorMode": "code",
+          "expr": "(100 * sum(sandbox_memory_usage_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1)) / sum(sandbox_memory_limit_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1))) or vector(0)",
+          "instant": true,
+          "legendFormat": "Memory",
+          "range": false,
           "refId": "A"
         }
       ],
-      "title": "Abnormal Sandboxes",
+      "title": "Memory Usage",
       "type": "stat"
     },
     {
       "datasource": {
+        "type": "prometheus",
         "uid": "${prometheus_ds}"
       },
-      "description": "All sandbox snapshots in the selected time window, including terminated sandboxes. Click a Runtime ID to filter the detailed utilization panels below.",
+      "description": "Per-sandbox resource utilization percentages alongside configured CPU and memory limits.",
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -218,9 +214,6 @@
               "type": "auto"
             },
             "filterable": true,
-            "footer": {
-              "reducers": []
-            },
             "inspect": false
           },
           "mappings": [],
@@ -229,11 +222,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
+                "value": null
               }
             ]
           }
@@ -242,123 +231,40 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Status"
+              "options": "Sandbox ID"
             },
             "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "mode": "gradient",
-                  "type": "color-background"
-                }
-              },
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "1": {
-                        "color": "rgba(255,200,0,0.85)",
-                        "index": 0,
-                        "text": "CREATING"
-                      },
-                      "2": {
-                        "color": "rgba(115,191,105,0.85)",
-                        "index": 1,
-                        "text": "RUNNING"
-                      },
-                      "3": {
-                        "color": "rgba(50,116,217,0.85)",
-                        "index": 2,
-                        "text": "COMPLETED"
-                      },
-                      "4": {
-                        "color": "rgba(242,73,92,0.85)",
-                        "index": 3,
-                        "text": "ABNORMAL"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              },
-              {
-                "id": "custom.width",
-                "value": 110
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CPU"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 93
-              },
-              {
-                "id": "unit",
-                "value": "core"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Memory (MiB)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "mbytes"
-              },
-              {
-                "id": "custom.width",
-                "value": 132
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Runtime ID"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 150
-              },
               {
                 "id": "links",
                 "value": [
                   {
                     "targetBlank": false,
-                    "title": "View details (set runtime_id filter)",
-                    "url": "/d/sandbox-metrics/sandbox-lifecycle-overview?var-node_id=${__data.fields[\"Node\"]}&var-image=${__data.fields[\"Image\"]}&var-runtime_id=${__data.fields[\"Runtime ID\"]}&from=${__from}&to=${__to}"
+                    "title": "${__value.raw}",
+                    "url": "/d/sandbox-metrics/akernel-sandbox-detail?${__url_time_range}&${akernel_env:queryparam}&${host_name:queryparam}&${tenantid:queryparam}&var-sandbox_id=${__value.raw}"
                   }
                 ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
               }
             ]
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "CPU Usage"
+              "id": "byRegexp",
+              "options": "^(CPU|Memory) Usage$"
             },
             "properties": [
               {
                 "id": "unit",
-                "value": "percentunit"
+                "value": "percent"
               },
               {
-                "id": "custom.cellOptions",
-                "value": {
-                  "mode": "basic",
-                  "type": "gauge",
-                  "valueDisplayMode": "color"
-                }
+                "id": "decimals",
+                "value": 1
               },
               {
                 "id": "min",
@@ -366,74 +272,13 @@
               },
               {
                 "id": "max",
-                "value": 2
-              },
-              {
-                "id": "custom.width",
-                "value": 120
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "thresholds"
-                }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": 0
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 0.6
-                    },
-                    {
-                      "color": "red",
-                      "value": 1.2
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Mem Usage (MiB)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "mbytes"
+                "value": 100
               },
               {
                 "id": "custom.cellOptions",
                 "value": {
                   "mode": "gradient",
-                  "type": "gauge",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 1
-              },
-              {
-                "id": "custom.width",
-                "value": 120
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "thresholds"
+                  "type": "gauge"
                 }
               },
               {
@@ -447,11 +292,11 @@
                     },
                     {
                       "color": "yellow",
-                      "value": 0.6
+                      "value": 70
                     },
                     {
                       "color": "red",
-                      "value": 0.85
+                      "value": 90
                     }
                   ]
                 }
@@ -461,24 +306,28 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Image"
+              "options": "CPU Total"
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 125
+                "id": "unit",
+                "value": "cores"
+              },
+              {
+                "id": "decimals",
+                "value": 2
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Sandbox ID"
+              "options": "Memory Total"
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 161
+                "id": "unit",
+                "value": "bytes"
               }
             ]
           }
@@ -488,11 +337,19 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 5
       },
       "id": 4,
       "options": {
         "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [
           {
@@ -508,39 +365,7 @@
             "uid": "${prometheus_ds}"
           },
           "editorMode": "code",
-          "expr": "last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[2m]) == 2",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "status"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "expr": "yr_sandbox_requested_cpu_cores{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "cpu"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "yr_sandbox_requested_memory_bytes{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"} / (1024 * 1024)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "mem"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "yr_sandbox_cpu_usage_cores{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}",
+          "expr": "(100 * sandbox_cpu_usage{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} / sandbox_cpu_limit{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"}) and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -551,11 +376,33 @@
             "uid": "${prometheus_ds}"
           },
           "editorMode": "code",
-          "expr": "yr_sandbox_memory_usage_bytes{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"} / (1024 * 1024)",
+          "expr": "sandbox_cpu_limit{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
-          "refId": "memroy-usage"
+          "refId": "cpu-total"
+        },
+        {
+          "datasource": {
+            "uid": "${prometheus_ds}"
+          },
+          "editorMode": "code",
+          "expr": "(100 * sandbox_memory_usage_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} / sandbox_memory_limit_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"}) and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "memory-usage"
+        },
+        {
+          "datasource": {
+            "uid": "${prometheus_ds}"
+          },
+          "editorMode": "code",
+          "expr": "sandbox_memory_limit_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=~\"$sandbox_id\"} == 1)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "",
+          "refId": "memory-total"
         }
       ],
       "title": "Sandbox Inventory",
@@ -568,7 +415,7 @@
           "id": "groupBy",
           "options": {
             "fields": {
-              "Value #cpu": {
+              "Value #cpu-total": {
                 "aggregations": [
                   "lastNotNull"
                 ],
@@ -580,31 +427,27 @@
                 ],
                 "operation": "aggregate"
               },
-              "Value #mem": {
+              "Value #memory-total": {
                 "aggregations": [
                   "lastNotNull"
                 ],
                 "operation": "aggregate"
               },
-              "Value #memroy-usage": {
+              "Value #memory-usage": {
                 "aggregations": [
                   "lastNotNull"
                 ],
                 "operation": "aggregate"
               },
-              "image": {
+              "akernel_env": {
                 "aggregations": [],
                 "operation": "groupby"
               },
-              "instance_id": {
+              "host_name": {
                 "aggregations": [],
                 "operation": "groupby"
               },
-              "node_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "runtime_id": {
+              "runtime_class": {
                 "aggregations": [],
                 "operation": "groupby"
               },
@@ -612,23 +455,9 @@
                 "aggregations": [],
                 "operation": "groupby"
               },
-              "yr_sandbox_cpu_usage_cores": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "yr_sandbox_lifecycle_status_enum": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "yr_sandbox_requested_cpu_cores": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
+              "tenantid": {
+                "aggregations": [],
+                "operation": "groupby"
               }
             }
           }
@@ -636,33 +465,33 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": {},
-            "includeByName": {},
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "akernel_env": true,
+              "job": true,
+              "runtime_base": true,
+              "service_name": true
+            },
             "indexByName": {
-              "Value #mem (lastNotNull)": 7,
-              "Value #memroy-usage (lastNotNull)": 9,
-              "image": 4,
-              "instance_id": 2,
-              "node_id": 3,
-              "runtime_id": 0,
-              "sandbox_id": 1,
-              "yr_sandbox_cpu_usage_cores (lastNotNull)": 8,
-              "yr_sandbox_lifecycle_status_enum (lastNotNull)": 5,
-              "yr_sandbox_requested_cpu_cores (lastNotNull)": 6
+              "host_name": 2,
+              "runtime_class": 3,
+              "sandbox_id": 0,
+              "tenantid": 1,
+              "Value #cpu-usage (lastNotNull)": 4,
+              "Value #cpu-total (lastNotNull)": 5,
+              "Value #memory-usage (lastNotNull)": 6,
+              "Value #memory-total (lastNotNull)": 7
             },
             "renameByName": {
-              "Value #cpu (lastNotNull)": "CPU",
+              "Value #cpu-total (lastNotNull)": "CPU Total",
               "Value #cpu-usage (lastNotNull)": "CPU Usage",
-              "Value #mem (lastNotNull)": "Memory (MiB)",
-              "Value #memroy-usage (lastNotNull)": "Mem Usage (MiB)",
-              "image": "Image",
-              "instance_id": "Instance ID",
-              "node_id": "Node",
-              "runtime_id": "Runtime ID",
+              "Value #memory-total (lastNotNull)": "Memory Total",
+              "Value #memory-usage (lastNotNull)": "Memory Usage",
+              "host_name": "Host",
+              "runtime_class": "Runtime",
               "sandbox_id": "Sandbox ID",
-              "yr_sandbox_cpu_usage_cores (lastNotNull)": "CPU Usage",
-              "yr_sandbox_lifecycle_status_enum (lastNotNull)": "Status",
-              "yr_sandbox_requested_cpu_cores (lastNotNull)": "CPU"
+              "tenantid": "Tenant"
             }
           }
         }
@@ -672,8 +501,9 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${prometheus_ds}"
       },
+      "description": "CPU utilization for the selected sandbox. Select a Sandbox ID or click one in the inventory table; All intentionally omits per-sandbox history.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -686,7 +516,6 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 15,
             "gradientMode": "none",
@@ -695,18 +524,13 @@
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
             "lineInterpolation": "smooth",
-            "lineStyle": {
-              "fill": "solid"
-            },
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "auto",
-            "showValues": false,
             "spanNulls": true,
             "stacking": {
               "group": "A",
@@ -723,105 +547,62 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
+                "value": null
               }
             ]
           },
-          "unit": "core"
+          "unit": "percent"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "CPU Limit"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    8,
-                    4
-                  ],
-                  "fill": "dash"
-                }
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 2
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 15
       },
-      "id": 10,
+      "id": 5,
+      "interval": "5s",
+      "maxDataPoints": 60,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
+          "calcs": [
+            "lastNotNull",
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
           "placement": "bottom",
-          "showLegend": false
+          "showLegend": true
         },
         "tooltip": {
           "hideZeros": false,
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${prometheus_ds}"
           },
           "editorMode": "code",
-          "expr": "sum(yr_sandbox_cpu_usage_cores{runtime_id=~\"$runtime_id\",node_id=~\"$node_id\",image=~\"$image\"})",
-          "legendFormat": "{{runtime_id}}",
+          "expr": "(100 * sandbox_cpu_usage{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=\"$sandbox_id\"} / sandbox_cpu_limit{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=\"$sandbox_id\"}) and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=\"$sandbox_id\"} == 1)",
+          "legendFormat": "{{sandbox_id}}",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(yr_sandbox_requested_cpu_cores{runtime_id=~\"$runtime_id\",node_id=~\"$node_id\",image=~\"$image\"})",
-          "legendFormat": "CPU Limit",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "CPU Usage (cores)",
+      "title": "CPU Usage by Sandbox",
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "${prometheus_ds}"
       },
+      "description": "Memory utilization for the selected sandbox. Select a Sandbox ID or click one in the inventory table; All intentionally omits per-sandbox history.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -834,24 +615,21 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 15,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "auto",
-            "showValues": false,
             "spanNulls": true,
             "stacking": {
               "group": "A",
@@ -868,448 +646,62 @@
             "steps": [
               {
                 "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
+                "value": null
               }
             ]
           },
-          "unit": "decgbytes"
+          "unit": "percent"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Memory Limit"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    8,
-                    4
-                  ],
-                  "fill": "dash"
-                }
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 2
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 15
       },
-      "id": 11,
+      "id": 6,
+      "interval": "5s",
+      "maxDataPoints": 60,
       "options": {
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
           "hideZeros": false,
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
       },
       "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "${prometheus_ds}"
           },
           "editorMode": "code",
-          "expr": "sum(yr_sandbox_memory_usage_bytes{runtime_id=~\"$runtime_id\",node_id=~\"$node_id\",image=~\"$image\"}) / (1024 * 1024 * 1024)",
-          "legendFormat": "{{runtime_id}}",
+          "expr": "(100 * sandbox_memory_usage_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=\"$sandbox_id\"} / sandbox_memory_limit_bytes{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=\"$sandbox_id\"}) and (sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\",sandbox_id=\"$sandbox_id\"} == 1)",
+          "legendFormat": "{{sandbox_id}}",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum(yr_sandbox_memory_limit_bytes{runtime_id=~\"$runtime_id\",node_id=~\"$node_id\",image=~\"$image\"}) / (1024 * 1024 * 1024)",
-          "legendFormat": "Memory Limit",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Memory Usage Ratio",
+      "title": "Memory Usage by Sandbox",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "uid": "${prometheus_ds}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "footer": {
-              "reducers": []
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Status"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "3": {
-                        "color": "blue",
-                        "index": 0,
-                        "text": "Completed"
-                      }
-                    },
-                    "type": "value"
-                  },
-                  {
-                    "options": {
-                      "4": {
-                        "color": "red",
-                        "index": 1,
-                        "text": "Abnormal"
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Avg CPU (cores)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "short"
-              },
-              {
-                "id": "min",
-                "value": 0
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Memory (MiB)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "decmbytes"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Runtime ID"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 340
-              },
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "targetBlank": false,
-                    "title": "View details (set runtime_id filter)",
-                    "url": "/d/sandbox-metrics/sandbox-lifecycle-overview?var-node_id=${__data.fields[\"Node\"]}&var-image=${__data.fields[\"Image\"]}&var-runtime_id=${__data.fields[\"Runtime ID\"]}&from=${__from}&to=${__to}"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Sandbox ID"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 340
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Duration (s)"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              },
-              {
-                "id": "custom.width",
-                "value": 120
-              },
-              {
-                "id": "decimals",
-                "value": 1
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      },
-      "id": 20,
-      "options": {
-        "cellHeight": "sm",
-        "frameIndex": 1,
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Status"
-          }
-        ]
-      },
-      "pluginVersion": "12.4.0",
-      "targets": [
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) > 2",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "status"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "avg_over_time(yr_sandbox_cpu_usage_cores{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) and on(runtime_id) (last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) > 2)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "cpu-avg"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "max_over_time(yr_sandbox_cpu_usage_cores{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) and on(runtime_id) (last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) > 2)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "cpu-peak"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "last_over_time(yr_sandbox_memory_usage_bytes{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) / (1024 * 1024) and on(runtime_id) (last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) > 2)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "mem"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "max_over_time(yr_sandbox_memory_usage_bytes{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) / (1024 * 1024) and on(runtime_id) (last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) > 2)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "mem-peak"
-        },
-        {
-          "datasource": {
-            "uid": "${prometheus_ds}"
-          },
-          "editorMode": "code",
-          "expr": "last_over_time(yr_sandbox_lifecycle_seconds{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) and on(runtime_id) (last_over_time(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\",runtime_id=~\"$runtime_id\"}[7d]) > 2)",
-          "format": "table",
-          "instant": true,
-          "legendFormat": "",
-          "refId": "duration"
-        }
-      ],
-      "title": "Abnormal / Completed Sandboxes",
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Value #cpu-avg": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #cpu-peak": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #duration": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #mem": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #mem-peak": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #status": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "image": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "instance_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "node_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "runtime_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "sandbox_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              }
-            }
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {},
-            "indexByName": {
-              "Value #cpu-avg (lastNotNull)": 7,
-              "Value #cpu-peak (lastNotNull)": 8,
-              "Value #duration (lastNotNull)": 6,
-              "Value #mem (lastNotNull)": 9,
-              "Value #mem-peak (lastNotNull)": 10,
-              "Value #status (lastNotNull)": 5,
-              "image": 4,
-              "instance_id": 2,
-              "node_id": 3,
-              "runtime_id": 0,
-              "sandbox_id": 1
-            },
-            "renameByName": {
-              "Value #cpu-avg (lastNotNull)": "Avg CPU (cores)",
-              "Value #cpu-peak (lastNotNull)": "Peak CPU (cores)",
-              "Value #duration (lastNotNull)": "Duration (s)",
-              "Value #mem (lastNotNull)": "Last Mem (MiB)",
-              "Value #mem-peak (lastNotNull)": "Peak Mem (MiB)",
-              "Value #status (lastNotNull)": "Status",
-              "image": "Image",
-              "instance_id": "Instance ID",
-              "node_id": "Node",
-              "runtime_id": "Runtime ID",
-              "sandbox_id": "Sandbox ID"
-            }
-          }
-        }
-      ],
-      "type": "table"
     }
   ],
-  "preload": false,
-  "refresh": "10s",
+  "refresh": "30s",
   "schemaVersion": 42,
   "tags": [
+    "akernel",
     "sandbox",
-    "runtime-manager",
-    "observability"
+    "sandboxd"
   ],
   "templating": {
     "list": [
@@ -1328,20 +720,6 @@
         "type": "datasource"
       },
       {
-        "current": {
-          "text": "Loki",
-          "value": "Loki"
-        },
-        "includeAll": false,
-        "label": "Loki Datasource",
-        "name": "loki_ds",
-        "options": [],
-        "query": "loki",
-        "refresh": 1,
-        "regex": "",
-        "type": "datasource"
-      },
-      {
         "allValue": ".*",
         "current": {
           "text": "All",
@@ -1350,19 +728,18 @@
         "datasource": {
           "uid": "${prometheus_ds}"
         },
-        "definition": "label_values(yr_sandbox_lifecycle_status_enum, node_id)",
+        "definition": "label_values(sandbox_running, akernel_env)",
         "includeAll": true,
-        "label": "Node",
+        "label": "AKernel Env",
         "multi": true,
-        "name": "node_id",
+        "name": "akernel_env",
         "options": [],
         "query": {
-          "query": "label_values(yr_sandbox_cpu_usage_cores, node_id)",
+          "query": "label_values(sandbox_running, akernel_env)",
           "refId": "S"
         },
         "refresh": 2,
         "regex": "",
-        "regexApplyTo": "value",
         "sort": 1,
         "type": "query"
       },
@@ -1375,19 +752,18 @@
         "datasource": {
           "uid": "${prometheus_ds}"
         },
-        "definition": "label_values(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\"}, image)",
+        "definition": "label_values(sandbox_running{akernel_env=~\"$akernel_env\"}, host_name)",
         "includeAll": true,
-        "label": "Image",
+        "label": "Host",
         "multi": true,
-        "name": "image",
+        "name": "host_name",
         "options": [],
         "query": {
-          "query": "label_values(yr_sandbox_cpu_usage_cores{node_id=~\"$node_id\"}, image)",
+          "query": "label_values(sandbox_running{akernel_env=~\"$akernel_env\"}, host_name)",
           "refId": "S"
         },
         "refresh": 2,
         "regex": "",
-        "regexApplyTo": "value",
         "sort": 1,
         "type": "query"
       },
@@ -1400,31 +776,55 @@
         "datasource": {
           "uid": "${prometheus_ds}"
         },
-        "definition": "label_values(yr_sandbox_lifecycle_status_enum{node_id=~\"$node_id\",image=~\"$image\"}, runtime_id)",
+        "definition": "label_values(sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\"}, tenantid)",
         "includeAll": true,
-        "label": "Runtime ID",
-        "name": "runtime_id",
+        "label": "Tenant",
+        "multi": true,
+        "name": "tenantid",
         "options": [],
         "query": {
-          "query": "label_values(yr_sandbox_cpu_usage_cores{node_id=~\"$node_id\",image=~\"$image\"}, runtime_id)",
+          "query": "label_values(sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\"}, tenantid)",
           "refId": "S"
         },
         "refresh": 2,
         "regex": "",
-        "regexApplyTo": "value",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "uid": "${prometheus_ds}"
+        },
+        "definition": "label_values(sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\"}, sandbox_id)",
+        "includeAll": true,
+        "label": "Sandbox ID",
+        "multi": false,
+        "name": "sandbox_id",
+        "options": [],
+        "query": {
+          "query": "label_values(sandbox_running{akernel_env=~\"$akernel_env\",host_name=~\"$host_name\",tenantid=~\"$tenantid\"}, sandbox_id)",
+          "refId": "S"
+        },
+        "refresh": 2,
+        "regex": "",
         "sort": 1,
         "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Sandbox Lifecycle Overview",
+  "title": "AKernel Sandbox Detail",
   "uid": "sandbox-metrics",
-  "version": 43,
+  "version": 0,
   "weekStart": ""
 }
