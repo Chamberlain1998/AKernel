@@ -22,7 +22,7 @@ import ssl
 import urllib.request
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from ._addresses import Endpoint, api_endpoint_from_env, port_endpoint_from_env
 from ._backends.base import BackendSession, SandboxSpec
@@ -31,7 +31,14 @@ from ._sandbox_resources import normalize_xpu, validate_storage_mb
 from .commands import Commands
 from .filesystem import Filesystem
 from .pty import Pty
-from .types import HttpReverseTunnel, Mount, NetworkPolicy, S3Config, SandboxInfo
+from .types import (
+    HttpReverseTunnel,
+    Mount,
+    NetworkPolicy,
+    S3Config,
+    SandboxInfo,
+    SnapshotInfo,
+)
 
 _SUPPORTED_RUNTIMES = ("runsc", "kata")
 _traefik_internal_ip_cache: str | None = None
@@ -112,6 +119,21 @@ class Sandbox:
     runtime and Kata Containers on KVM-capable nodes.
     """
 
+    @classmethod
+    def create(
+        cls,
+        snapshot_id: str | SnapshotInfo,
+        **kwargs: Any,
+    ) -> Sandbox:
+        """Create a new sandbox by restoring a READY reusable Snapshot."""
+
+        value = (
+            snapshot_id.snapshot_id
+            if isinstance(snapshot_id, SnapshotInfo)
+            else snapshot_id
+        )
+        return cls(snapshot_id=value, **kwargs)
+
     def __init__(
         self,
         image: str | None = None,
@@ -132,6 +154,7 @@ class Sandbox:
         detached: bool = False,
         node_id: str | None = None,
         *,
+        snapshot_id: str | None = None,
         xpu: str | None = None,
         storage_mb: int | None = None,
         network_policy: NetworkPolicy | None = None,
@@ -177,6 +200,10 @@ class Sandbox:
             raise TypeError("rootfs must be an S3Config")
         if image is not None and rootfs is not None:
             raise ValueError("image and rootfs are mutually exclusive")
+        if snapshot_id is not None and (
+            not isinstance(snapshot_id, str) or not snapshot_id.strip()
+        ):
+            raise ValueError("snapshot_id must be a non-empty string")
         if runtime not in _SUPPORTED_RUNTIMES:
             raise ValueError(
                 f"unsupported runtime {runtime!r}; "
@@ -277,6 +304,7 @@ class Sandbox:
                 if network_policy is None or network_policy.is_empty
                 else network_policy
             ),
+            snapshot_id=(snapshot_id.strip() if snapshot_id is not None else None),
         )
         self._session = load_backend().create(spec)
         try:
@@ -399,6 +427,19 @@ class Sandbox:
             ),
         )
 
+    def create_snapshot(self, *, name: str | None = None) -> SnapshotInfo:
+        """Create a non-expiring reusable Snapshot from this running sandbox."""
+
+        if self._closed or self._session is None:
+            raise RuntimeError("sandbox is closed")
+        if name is not None and (
+            not isinstance(name, str) or not name.strip()
+        ):
+            raise ValueError("name must be a non-empty string or None")
+        return self._session.create_snapshot(
+            name=name.strip() if name is not None else None
+        )
+
     def kill(self) -> None:
         """Release client resources and terminate a non-detached sandbox."""
 
@@ -457,6 +498,46 @@ class Sandbox:
         if not isinstance(name, str) or not name.strip():
             raise ValueError("name must be a non-empty string")
         load_backend().delete_named(name)
+
+    @classmethod
+    def get_snapshot(cls, snapshot_id: str) -> SnapshotInfo:
+        """Return one reusable Snapshot visible to the current tenant."""
+
+        if not isinstance(snapshot_id, str) or not snapshot_id.strip():
+            raise ValueError("snapshot_id must be a non-empty string")
+        return load_backend().get_snapshot(snapshot_id.strip())
+
+    @classmethod
+    def list_snapshots(
+        cls,
+        *,
+        name: str | None = None,
+        page_token: str | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[SnapshotInfo], str]:
+        """List reusable Snapshots and return the next page token."""
+
+        if name is not None and (
+            not isinstance(name, str) or not name.strip()
+        ):
+            raise ValueError("name must be a non-empty string or None")
+        if page_token is not None and not isinstance(page_token, str):
+            raise TypeError("page_token must be a string or None")
+        if page_size is not None:
+            _validate_integer("page_size", page_size, minimum=1)
+        return load_backend().list_snapshots(
+            name=name.strip() if name is not None else None,
+            page_token=page_token,
+            page_size=page_size,
+        )
+
+    @classmethod
+    def delete_snapshot(cls, snapshot_id: str) -> None:
+        """Delete one reusable Snapshot owned by the current tenant."""
+
+        if not isinstance(snapshot_id, str) or not snapshot_id.strip():
+            raise ValueError("snapshot_id must be a non-empty string")
+        load_backend().delete_snapshot(snapshot_id.strip())
 
     def __enter__(self) -> Sandbox:
         return self

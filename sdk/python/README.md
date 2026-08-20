@@ -15,6 +15,7 @@ It supports two backends:
   - [Navigation](#navigation)
   - [Install and configure](#install-and-configure)
   - [Create a sandbox](#create-a-sandbox)
+    - [Reusable snapshots](#reusable-snapshots)
     - [Experimental GPU and writable storage](#experimental-gpu-and-writable-storage)
     - [Network ACLs](#network-acls)
   - [Sandbox runtimes](#sandbox-runtimes)
@@ -102,11 +103,47 @@ Sandbox(
     detached: bool = False,
     node_id: str | None = None,
     *,
+    snapshot_id: str | None = None,
     xpu: str | None = None,
     storage_mb: int | None = None,
     network_policy: NetworkPolicy | None = None,
 )
 ```
+
+### Reusable snapshots
+
+Create a non-expiring reusable Snapshot from a running sandbox, then create
+independent sandboxes from its frozen workload state:
+
+```python
+from akernel_sdk import Sandbox
+
+source = Sandbox(name="source")
+source.files.write("/tmp/marker", "ready")
+snapshot = source.create_snapshot(name="python-ready")
+
+clone = Sandbox.create(snapshot, name="clone")
+assert clone.files.read("/tmp/marker") == "ready"
+
+listed, next_page_token = Sandbox.list_snapshots(
+    name="python-ready",
+    page_size=20,
+)
+same_snapshot = Sandbox.get_snapshot(snapshot.snapshot_id)
+Sandbox.delete_snapshot(same_snapshot.snapshot_id)
+
+clone.kill()
+source.kill()
+```
+
+`create_snapshot()` leaves the source sandbox running. Snapshots do not expire;
+delete them explicitly when they are no longer needed. `SnapshotInfo` exposes
+only the stable `snapshot_id` and `names`. Create-from-Snapshot accepts either
+that object or its ID and otherwise uses the normal create naming, request,
+scheduling, resource, and routing behavior. Reusable Snapshots require the
+default `openyuanrong-sandbox` RRT backend; the legacy actor backend reports the
+feature as unsupported. See
+[`examples/reusable_snapshot.py`](./examples/reusable_snapshot.py).
 
 ### Experimental GPU and writable storage
 

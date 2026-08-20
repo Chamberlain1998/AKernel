@@ -60,6 +60,7 @@ assert 'YR_HTTP_CONNECTION_NUM' not in os.environ
                 "CommandHandle",
                 "EntryInfo",
                 "SandboxInfo",
+                "SnapshotInfo",
                 "NodeInfo",
                 "Pty",
                 "PtySession",

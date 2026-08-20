@@ -33,6 +33,7 @@ from .types import (
     NodeInfo,
     S3Config,
     SandboxInfo,
+    SnapshotInfo,
 )
 
 __all__ = [
@@ -46,6 +47,7 @@ __all__ = [
     "CommandHandle",
     "EntryInfo",
     "SandboxInfo",
+    "SnapshotInfo",
     "NodeInfo",
     "Pty",
     "PtySession",

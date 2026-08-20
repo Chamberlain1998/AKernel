@@ -20,7 +20,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from ..types import CommandInfo, CommandResult, EntryInfo, SandboxInfo
+from ..types import CommandInfo, CommandResult, EntryInfo, SandboxInfo, SnapshotInfo
 from . import openyuanrong_sdk_impl as _impl
 from .base import (
     Backend,
@@ -29,7 +29,7 @@ from .base import (
     Capability,
     SandboxSpec,
 )
-from .errors import BackendOperationError
+from .errors import BackendOperationError, UnsupportedBackendFeatureError
 from .openyuanrong_sdk_commands import (
     CommandHandle as NativeCommandHandle,
 )
@@ -238,6 +238,12 @@ class _Session:
             storage_mb=self._spec.storage_mb,
         )
 
+    def create_snapshot(self, *, name: str | None = None) -> SnapshotInfo:
+        del name
+        raise UnsupportedBackendFeatureError(
+            "Backend 'openyuanrong-sdk' does not support reusable Snapshots."
+        )
+
     def terminate(self) -> None:
         if self._terminated:
             return
@@ -271,6 +277,10 @@ class OpenYuanRongSdkBackend:
         _impl.ensure_initialized()
 
     def create(self, spec: SandboxSpec) -> BackendSession:
+        if spec.snapshot_id is not None:
+            raise UnsupportedBackendFeatureError(
+                "Backend 'openyuanrong-sdk' does not support reusable Snapshots."
+            )
         options = _impl.build_options(
             image=spec.image,
             rootfs=spec.rootfs,
@@ -337,6 +347,30 @@ class OpenYuanRongSdkBackend:
             _impl.delete_named_instance(name)
         except Exception as error:
             raise _convert_error(f"delete sandbox {name!r}", error) from error
+
+    def get_snapshot(self, snapshot_id: str) -> SnapshotInfo:
+        del snapshot_id
+        raise UnsupportedBackendFeatureError(
+            "Backend 'openyuanrong-sdk' does not support reusable Snapshots."
+        )
+
+    def list_snapshots(
+        self,
+        *,
+        name: str | None = None,
+        page_token: str | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[SnapshotInfo], str]:
+        del name, page_token, page_size
+        raise UnsupportedBackendFeatureError(
+            "Backend 'openyuanrong-sdk' does not support reusable Snapshots."
+        )
+
+    def delete_snapshot(self, snapshot_id: str) -> None:
+        del snapshot_id
+        raise UnsupportedBackendFeatureError(
+            "Backend 'openyuanrong-sdk' does not support reusable Snapshots."
+        )
 
     def close(self) -> None:
         _impl.finalize()

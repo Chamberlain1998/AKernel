@@ -38,6 +38,7 @@ from akernel_sdk.types import (
     Mount,
     NetworkPolicy,
     S3Config,
+    SnapshotInfo,
 )
 
 
@@ -146,6 +147,57 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
         self.assertEqual(os.environ["YR_GATEWAY_ADDRESS"], "gateway.example:80")
         self.assertEqual(os.environ["YR_GATEWAY_TLS"], "0")
         self.assertEqual(os.environ["YR_TOKEN"], "secret")
+
+    def test_reusable_snapshot_operations_map_to_native_sdk(self):
+        native = MagicMock()
+        native.id = "default-clone"
+        native.create_snapshot.return_value = SimpleNamespace(
+            snapshot_id="snap-created",
+            names=("base",),
+        )
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+        ) as sandbox_type:
+            sandbox_type.create.return_value = native
+            sandbox_type.get_snapshot.return_value = SimpleNamespace(
+                snapshot_id="snap-1",
+                names=("base",),
+            )
+            sandbox_type.list_snapshots.return_value = (
+                [SimpleNamespace(snapshot_id="snap-1", names=())],
+                "next",
+            )
+
+            session = self.backend.create(_spec(snapshot_id="snap-1"))
+            self.assertEqual(
+                session.create_snapshot(name="base"),
+                SnapshotInfo("snap-created", ("base",)),
+            )
+            self.assertEqual(
+                self.backend.get_snapshot("snap-1"),
+                SnapshotInfo("snap-1", ("base",)),
+            )
+            self.assertEqual(
+                self.backend.list_snapshots(
+                    name="base",
+                    page_token="p",
+                    page_size=10,
+                ),
+                ([SnapshotInfo("snap-1", ())], "next"),
+            )
+            self.backend.delete_snapshot("snap-1")
+
+        sandbox_type.create.assert_called_once()
+        self.assertEqual(sandbox_type.create.call_args.args, ("snap-1",))
+        native.create_snapshot.assert_called_once_with(name="base")
+        sandbox_type.get_snapshot.assert_called_once_with("snap-1")
+        sandbox_type.list_snapshots.assert_called_once_with(
+            name="base",
+            page_token="p",
+            page_size=10,
+        )
+        sandbox_type.delete_snapshot.assert_called_once_with("snap-1")
 
     def test_kata_without_explicit_rootfs_passes_runtime_config_override(self):
         native = MagicMock()
@@ -435,6 +487,16 @@ class OpenYuanRongSdkBackendTest(unittest.TestCase):
         initialized.start()
         self.addCleanup(initialized.stop)
         self.backend = openyuanrong_sdk.OpenYuanRongSdkBackend(self.config)
+
+    def test_reusable_snapshots_are_explicitly_unsupported(self):
+        with self.assertRaises(UnsupportedBackendFeatureError):
+            self.backend.create(_spec(snapshot_id="snap-1"))
+        with self.assertRaises(UnsupportedBackendFeatureError):
+            self.backend.get_snapshot("snap-1")
+        with self.assertRaises(UnsupportedBackendFeatureError):
+            self.backend.list_snapshots()
+        with self.assertRaises(UnsupportedBackendFeatureError):
+            self.backend.delete_snapshot("snap-1")
 
     def test_physical_id_failure_rolls_back_created_actor(self):
         instance = MagicMock()

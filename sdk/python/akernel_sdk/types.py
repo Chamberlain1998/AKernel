@@ -161,6 +161,14 @@ class SandboxInfo:
 
 
 @dataclass(frozen=True)
+class SnapshotInfo:
+    """Stable public identity and aliases of a reusable Snapshot."""
+
+    snapshot_id: str
+    names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class NodeInfo:
     """Capacity, allocation, and labels advertised by an AKernel node."""
 

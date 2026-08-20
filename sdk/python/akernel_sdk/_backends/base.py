@@ -31,6 +31,7 @@ from ..types import (
     NetworkPolicy,
     S3Config,
     SandboxInfo,
+    SnapshotInfo,
 )
 
 
@@ -77,6 +78,7 @@ class SandboxSpec:
     xpu: str | None
     storage_mb: int | None
     network_policy: NetworkPolicy | None
+    snapshot_id: str | None = None
 
 
 class CommandsDriver(Protocol):
@@ -149,6 +151,8 @@ class BackendSession(Protocol):
 
     def get_info(self) -> SandboxInfo: ...
 
+    def create_snapshot(self, *, name: str | None = None) -> SnapshotInfo: ...
+
     def terminate(self) -> None: ...
 
     def close(self) -> None: ...
@@ -162,6 +166,18 @@ class Backend(Protocol):
     capabilities: frozenset[Capability]
 
     def create(self, spec: SandboxSpec) -> BackendSession: ...
+
+    def get_snapshot(self, snapshot_id: str) -> SnapshotInfo: ...
+
+    def list_snapshots(
+        self,
+        *,
+        name: str | None = None,
+        page_token: str | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[SnapshotInfo], str]: ...
+
+    def delete_snapshot(self, snapshot_id: str) -> None: ...
 
     def delete_named(self, name: str) -> None: ...
 

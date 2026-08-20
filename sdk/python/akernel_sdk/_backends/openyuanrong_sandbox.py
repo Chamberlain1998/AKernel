@@ -22,7 +22,7 @@ from typing import Any
 
 import yr_sandbox
 
-from ..types import CommandInfo, CommandResult, EntryInfo, SandboxInfo
+from ..types import CommandInfo, CommandResult, EntryInfo, SandboxInfo, SnapshotInfo
 from .base import (
     Backend,
     BackendConfig,
@@ -64,6 +64,13 @@ def _entry_info(value: Any) -> EntryInfo:
         size=int(value.size),
         permissions=str(value.permissions),
         modified_time=float(value.modified_time),
+    )
+
+
+def _snapshot_info(value: Any) -> SnapshotInfo:
+    return SnapshotInfo(
+        snapshot_id=str(value.snapshot_id),
+        names=tuple(str(name) for name in value.names),
     )
 
 
@@ -246,6 +253,12 @@ class _Session:
             storage_mb=self._spec.storage_mb,
         )
 
+    def create_snapshot(self, *, name: str | None = None) -> SnapshotInfo:
+        try:
+            return _snapshot_info(self._sandbox.create_snapshot(name=name))
+        except Exception as error:
+            raise _convert_error("create reusable Snapshot", error) from error
+
     def terminate(self) -> None:
         if self._terminated:
             return
@@ -335,47 +348,83 @@ class OpenYuanRongSandboxBackend:
             for mount in spec.mounts
         ]
         create_timeout = max(60, spec.schedule_timeout + 30)
+        sandbox_options: dict[str, Any] = {
+            "image": spec.image,
+            "rootfs": rootfs,
+            "runtime": spec.runtime,
+            "cpu": spec.cpu,
+            "memory": spec.memory,
+            "cpu_limit": spec.cpu_limit,
+            "mem_limit": spec.mem_limit,
+            "idle_timeout": spec.idle_timeout,
+            "schedule_timeout": spec.schedule_timeout,
+            "env": dict(spec.env),
+            "name": spec.name,
+            "cwd": spec.command_cwd,
+            "port_forwardings": list(spec.port_forwardings),
+            "mounts": mounts,
+            "upstream": (
+                spec.reverse_tunnel.target
+                if spec.reverse_tunnel is not None
+                else None
+            ),
+            "tunnel_connect_timeout": (
+                spec.reverse_tunnel.connect_timeout
+                if spec.reverse_tunnel is not None
+                else None
+            ),
+            "proxy_port": (
+                spec.reverse_tunnel.listen_port
+                if spec.reverse_tunnel is not None
+                else _DEFAULT_LISTEN_PORT
+            ),
+            "detached": spec.detached,
+            "node_id": spec.node_id,
+            "xpu": spec.xpu,
+            "storage_mb": spec.storage_mb,
+            "network": network,
+            "create_timeout": create_timeout,
+        }
         try:
-            sandbox = yr_sandbox.Sandbox(
-                image=spec.image,
-                rootfs=rootfs,
-                runtime=spec.runtime,
-                cpu=spec.cpu,
-                memory=spec.memory,
-                cpu_limit=spec.cpu_limit,
-                mem_limit=spec.mem_limit,
-                idle_timeout=spec.idle_timeout,
-                schedule_timeout=spec.schedule_timeout,
-                env=dict(spec.env),
-                name=spec.name,
-                cwd=spec.command_cwd,
-                port_forwardings=list(spec.port_forwardings),
-                mounts=mounts,
-                upstream=(
-                    spec.reverse_tunnel.target
-                    if spec.reverse_tunnel is not None
-                    else None
-                ),
-                tunnel_connect_timeout=(
-                    spec.reverse_tunnel.connect_timeout
-                    if spec.reverse_tunnel is not None
-                    else None
-                ),
-                proxy_port=(
-                    spec.reverse_tunnel.listen_port
-                    if spec.reverse_tunnel is not None
-                    else _DEFAULT_LISTEN_PORT
-                ),
-                detached=spec.detached,
-                node_id=spec.node_id,
-                xpu=spec.xpu,
-                storage_mb=spec.storage_mb,
-                network=network,
-                create_timeout=create_timeout,
-            )
+            if spec.snapshot_id is None:
+                sandbox = yr_sandbox.Sandbox(**sandbox_options)
+            else:
+                sandbox = yr_sandbox.Sandbox.create(
+                    spec.snapshot_id,
+                    **sandbox_options,
+                )
         except Exception as error:
             raise _convert_error("create sandbox", error) from error
         return _Session(sandbox, spec)
+
+    def get_snapshot(self, snapshot_id: str) -> SnapshotInfo:
+        try:
+            return _snapshot_info(yr_sandbox.Sandbox.get_snapshot(snapshot_id))
+        except Exception as error:
+            raise _convert_error("get reusable Snapshot", error) from error
+
+    def list_snapshots(
+        self,
+        *,
+        name: str | None = None,
+        page_token: str | None = None,
+        page_size: int | None = None,
+    ) -> tuple[list[SnapshotInfo], str]:
+        try:
+            values, next_page_token = yr_sandbox.Sandbox.list_snapshots(
+                name=name,
+                page_token=page_token,
+                page_size=page_size,
+            )
+            return ([_snapshot_info(value) for value in values], next_page_token)
+        except Exception as error:
+            raise _convert_error("list reusable Snapshots", error) from error
+
+    def delete_snapshot(self, snapshot_id: str) -> None:
+        try:
+            yr_sandbox.Sandbox.delete_snapshot(snapshot_id)
+        except Exception as error:
+            raise _convert_error("delete reusable Snapshot", error) from error
 
     def delete_named(self, name: str) -> None:
         sandbox_id = f"{self.namespace}-{name}"
