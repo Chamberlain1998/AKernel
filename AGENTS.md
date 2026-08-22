@@ -158,6 +158,14 @@ provide both `OPEN_YR_CORE_WHEEL_URL` and `OPEN_YR_CORE_WHEEL_SHA256` to
 `make build`. The complete wheel is verified before it replaces the pinned
 release control plane.
 
+This branch sets the core and RRT wheel URL/SHA pairs in the `Makefile` to
+durable GitHub Release mirrors of the amd64 OBS artifacts from YuanRong
+Buildkite build `yuanrong-jcl#237` at commit
+`87cba622b491f7303415d179f3fa2fdae98e69e7`. Consequently, an unqualified
+`make build` consumes that integrated build without a Buildkite token. Callers
+can still override either URL/SHA pair together through the existing make
+variables.
+
 The Dockerfiles delegate openYuanRong artifact acquisition to two stable,
 replaceable build-context scripts:
 

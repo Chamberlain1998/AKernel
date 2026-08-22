@@ -109,6 +109,13 @@ selected passed YuanRong Buildkite build. It pushes one universal image and
 publishes the YuanRong sandbox SDK plus standalone and Helm deployment
 bundles.
 
+This branch defaults source builds to durable, checksum-pinned mirrors of the
+core and RRT wheels from YuanRong Buildkite build
+[`yuanrong-jcl#237`](https://buildkite.com/openyuanrong/yuanrong-jcl/builds/237).
+The normal `make build` command consumes the public GitHub Release assets
+without extra credentials; set the matching `OPEN_YR_*_WHEEL_URL` and
+`OPEN_YR_*_WHEEL_SHA256` pairs to override them.
+
 
 ### Create a Sandbox
 
