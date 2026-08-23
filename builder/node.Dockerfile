@@ -7,6 +7,7 @@ ARG AKERNEL_RUNTIME_IMAGE=akernel-runtime:local
 ARG AKERNEL_RUNTIME_PROFILE=rrt
 ARG AKERNEL_ENABLE_KATA=true
 ARG AKERNEL_ENABLE_RUNC=false
+ARG AKERNEL_ENABLE_FIRECRACKER=true
 ARG SANDBOXD_BUILD_IMAGE=golang:1.25.5-bookworm
 ARG DISTILL_FS_BUILD_IMAGE=rust:1.85.0-bookworm
 ARG OPEN_YR_VERSION=0.9.9
@@ -15,8 +16,10 @@ ARG OPEN_YR_CORE_WHEEL_SHA256=
 ARG OPEN_YR_RELEASE_BASE_URL=https://github.com/openYuanrong-mirror/yuanrong/releases/download
 ARG OPEN_YR_CORE_AMD64_SHA256=c2c0c37d985b07c0543c402534380fa84b1b7a5883bbb25d5d332bf97fa8c2ba
 ARG OPEN_YR_CORE_ARM64_SHA256=2b751a856cf0545a11bff0bbe987eb91ea5d8184859c16fa601398211e7f4301
-ARG GVISOR_RELEASE=release-20260706.0
-ARG GVISOR_RELEASE_BASE_URL=https://storage.googleapis.com/gvisor/releases
+ARG GVISOR_DOWNLOAD_IMAGE=ubuntu:24.04
+ARG GVISOR_RELEASE
+ARG GVISOR_AMD64_URL
+ARG GVISOR_AMD64_SHA512
 ARG RUNC_VERSION=1.5.1
 ARG RUNC_AMD64_SHA256=177df879d50c913eb205e898d5c1c05a18f574053c0ce5524c471208eaf06f6f
 ARG RUNC_RELEASE_BASE_URL=https://github.com/opencontainers/runc/releases/download
@@ -26,10 +29,38 @@ ARG KATA_BUILD_IMAGE=ubuntu:24.04
 ARG KATA_RELEASE=4.0.0
 ARG KATA_AMD64_SHA256=2c3b9dfeba355582b40aee462b12916c9740654d0230f696adf719d67b063a8c
 ARG KATA_RELEASE_BASE_URL=https://github.com/kata-containers/kata-containers/releases/download
+ARG FIRECRACKER_BUILD_IMAGE=ubuntu:24.04
+ARG FIRECRACKER_RELEASE
+ARG FIRECRACKER_AMD64_SHA256
+ARG FIRECRACKER_AMD64_URL
 ARG OTELCOL_CONTRIB_VERSION=0.120.0
 ARG OTELCOL_CONTRIB_URL=https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v${OTELCOL_CONTRIB_VERSION}/otelcol-contrib_${OTELCOL_CONTRIB_VERSION}_linux_amd64.tar.gz
 ARG AKERNEL_VERSION=unknown
 ARG AKERNEL_REVISION=unknown
+
+FROM ${GVISOR_DOWNLOAD_IMAGE} AS gvisor-runtime
+ARG GVISOR_RELEASE
+ARG GVISOR_AMD64_URL
+ARG GVISOR_AMD64_SHA512
+ARG TARGETARCH
+RUN set -eux; \
+    case "${TARGETARCH:-}" in \
+      amd64) ;; \
+      "") test "$(uname -m)" = "x86_64" ;; \
+      *) echo "unsupported gVisor target architecture: ${TARGETARCH}" >&2; \
+         exit 1 ;; \
+    esac; \
+    test -n "${GVISOR_RELEASE}"; \
+    test -n "${GVISOR_AMD64_URL}"; \
+    test -n "${GVISOR_AMD64_SHA512}"; \
+    asset=/tmp/runsc; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl; \
+    rm -rf /var/lib/apt/lists/*; \
+    curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
+      "${GVISOR_AMD64_URL}" -o "${asset}"; \
+    echo "${GVISOR_AMD64_SHA512}  ${asset}" | sha512sum -c -; \
+    install -D -m 0755 "${asset}" /gvisor/runsc
 
 FROM ${KATA_BUILD_IMAGE} AS kata-runtime-true
 ARG KATA_RELEASE
@@ -83,6 +114,63 @@ WORKDIR /src/sandboxd
 COPY ./src/sandboxd/ ./
 RUN make release
 
+FROM ${FIRECRACKER_BUILD_IMAGE} AS firecracker-runtime-true
+ARG FIRECRACKER_RELEASE
+ARG FIRECRACKER_AMD64_SHA256
+ARG FIRECRACKER_AMD64_URL
+ARG TARGETARCH
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates cpio curl gzip jq && \
+    rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    test "${TARGETARCH:-amd64}" = "amd64"; \
+    test -n "${FIRECRACKER_RELEASE}"; \
+    test -n "${FIRECRACKER_AMD64_SHA256}"; \
+    test -n "${FIRECRACKER_AMD64_URL}"; \
+    archive="/tmp/firecracker-${FIRECRACKER_RELEASE}-x86_64.tgz"; \
+    curl -fSL --retry 10 --retry-delay 2 --retry-all-errors \
+      "${FIRECRACKER_AMD64_URL}" \
+      -o "${archive}"; \
+    echo "${FIRECRACKER_AMD64_SHA256}  ${archive}" | sha256sum -c -; \
+    mkdir -p /tmp/firecracker-release \
+      /firecracker/usr/local/bin \
+      /firecracker/opt/firecracker/licenses \
+      /initrd; \
+    tar -xzf "${archive}" -C /tmp/firecracker-release; \
+    bundle="/tmp/firecracker-release/release-${FIRECRACKER_RELEASE}-x86_64"; \
+    jq -e --arg release "${FIRECRACKER_RELEASE}" \
+      '.component == "akernel-firecracker-runtime" and \
+       .repository == "akernel-dev/firecracker" and \
+       .release_tag == $release and \
+       .architecture == "x86_64"' \
+      "${bundle}/manifest.json" >/dev/null; \
+    (cd "${bundle}"; sha256sum -c SHA256SUMS); \
+    install -m 0755 "${bundle}/firecracker" \
+      /firecracker/usr/local/bin/firecracker; \
+    install -m 0644 \
+      "${bundle}/vmlinux" \
+      "${bundle}/kernel.config" \
+      "${bundle}/manifest.json" \
+      /firecracker/opt/firecracker/; \
+    cp -a "${bundle}/licenses/." /firecracker/opt/firecracker/licenses/
+
+COPY --from=sandboxd-builder /src/sandboxd/output/firecracker-agent /initrd/init
+RUN set -eux; \
+    chmod 0755 /initrd/init; \
+    chmod 0700 /initrd; \
+    touch -d @0 /initrd /initrd/init; \
+    cd /initrd; \
+    find . -print0 \
+      | LC_ALL=C sort -z \
+      | cpio --null --create --format=newc --owner=0:0 --reproducible \
+      | gzip -n -9 > /firecracker/opt/firecracker/initrd.img; \
+    chmod 0644 /firecracker/opt/firecracker/initrd.img
+
+FROM ${FIRECRACKER_BUILD_IMAGE} AS firecracker-runtime-false
+RUN mkdir -p /firecracker/usr/local/bin /firecracker/opt/firecracker
+
+FROM firecracker-runtime-${AKERNEL_ENABLE_FIRECRACKER} AS firecracker-runtime
+
 FROM ${RUNC_BUILD_IMAGE} AS runc-runtime-true
 ARG RUNC_VERSION
 ARG RUNC_AMD64_SHA256
@@ -128,6 +216,7 @@ RUN cargo build --locked --release --bin distill_fs
 FROM ${AKERNEL_NODE_BASE_IMAGE}
 ARG AKERNEL_ENABLE_KATA
 ARG AKERNEL_ENABLE_RUNC
+ARG AKERNEL_ENABLE_FIRECRACKER
 ARG AKERNEL_RUNTIME_PROFILE
 ARG AKERNEL_VERSION
 ARG AKERNEL_REVISION
@@ -138,8 +227,8 @@ ARG OPEN_YR_RELEASE_BASE_URL
 ARG OPEN_YR_CORE_AMD64_SHA256
 ARG OPEN_YR_CORE_ARM64_SHA256
 ARG GVISOR_RELEASE
-ARG GVISOR_RELEASE_BASE_URL
 ARG RUNC_VERSION
+ARG FIRECRACKER_RELEASE
 ARG LIBNVIDIA_CONTAINER_VERSION
 ARG OTELCOL_CONTRIB_URL
 ARG TARGETARCH
@@ -189,28 +278,6 @@ RUN if command -v update-alternatives >/dev/null 2>&1; then \
         update-alternatives --set iptables /usr/sbin/iptables-legacy || true; \
         update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy || true; \
     fi
-
-RUN set -eux; \
-    case "${TARGETARCH:-}" in \
-        amd64) gvisor_arch="x86_64" ;; \
-        "") \
-            [ "$(uname -m)" = "x86_64" ] || { echo "unsupported gVisor target architecture: $(uname -m)" >&2; exit 1; }; \
-            gvisor_arch="x86_64" ;; \
-        *) echo "unsupported gVisor target architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    gvisor_version="${GVISOR_RELEASE#release-}"; \
-    if [ "${gvisor_version}" = "${GVISOR_RELEASE}" ]; then \
-        echo "GVISOR_RELEASE must be an official tag such as release-20260706.0" >&2; \
-        exit 1; \
-    fi; \
-    gvisor_url="${GVISOR_RELEASE_BASE_URL}/release/${gvisor_version}/${gvisor_arch}"; \
-    mkdir -p /tmp/gvisor-release; \
-    cd /tmp/gvisor-release; \
-    curl -fSLO --retry 10 --retry-delay 2 --retry-all-errors "${gvisor_url}/runsc"; \
-    curl -fSLO --retry 10 --retry-delay 2 --retry-all-errors "${gvisor_url}/runsc.sha512"; \
-    sha512sum -c runsc.sha512; \
-    install -m 0755 runsc /usr/local/bin/runsc; \
-    rm -rf /tmp/gvisor-release
 
 RUN if command -v systemctl >/dev/null 2>&1; then \
         systemctl mask \
@@ -275,12 +342,14 @@ RUN set -eux; \
 
 COPY --from=runtime-image /yr-runtime-rootfs.img ${YR_INSTALLATION_DIR}/yr-runtime-rootfs.img
 
+COPY --from=gvisor-runtime /gvisor/runsc /usr/local/bin/runsc
 COPY --from=sandboxd-builder /src/sandboxd/output/sandboxd /usr/local/bin/sandboxd
 COPY --from=sandboxd-builder /src/sandboxd/output/sbox /usr/local/bin/sbox
 COPY --from=sandboxd-builder /src/sandboxd/output/sandbox-logger /usr/local/bin/sandbox-logger
 COPY --from=distill-fs-builder /src/distill-fs/target/release/distill_fs /usr/local/bin/distill_fs
 COPY --from=kata-runtime /kata/opt/kata /opt/kata
 COPY --from=runc-runtime /runc/usr/local/bin/ /usr/local/bin/
+COPY --from=firecracker-runtime /firecracker/ /
 RUN if [ "${AKERNEL_ENABLE_KATA}" = "true" ]; then \
       ln -sf /opt/kata/runtime-rs/bin/containerd-shim-kata-v2 /usr/local/bin/containerd-shim-kata-v2; \
     fi
@@ -343,9 +412,12 @@ RUN mkdir -p ${YR_INSTALLATION_DIR}/logs ${YR_INSTALLATION_DIR}/metrics ${YR_INS
 LABEL org.opencontainers.image.version="${AKERNEL_VERSION}" \
       org.opencontainers.image.revision="${AKERNEL_REVISION}" \
       org.akernel.runtime.profile="${AKERNEL_RUNTIME_PROFILE}" \
+      org.akernel.gvisor.release="${GVISOR_RELEASE}" \
       org.akernel.runc.version="${RUNC_VERSION}" \
       org.akernel.runc.enabled="${AKERNEL_ENABLE_RUNC}" \
-      org.akernel.kata.enabled="${AKERNEL_ENABLE_KATA}"
+      org.akernel.kata.enabled="${AKERNEL_ENABLE_KATA}" \
+      org.akernel.firecracker.release="${FIRECRACKER_RELEASE}" \
+      org.akernel.firecracker.enabled="${AKERNEL_ENABLE_FIRECRACKER}"
 
 ENV YR_LOG_PATH=${YR_INSTALLATION_DIR}/logs
 STOPSIGNAL SIGRTMIN+3
