@@ -363,6 +363,83 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
             CommandResult("still generation zero\n", "", 0),
         )
 
+    def test_wait_allows_concurrent_stdin_and_kill_to_finish_process(self):
+        native = MagicMock()
+        native.id = "default-command-readers"
+        old_handle = MagicMock(pid=321)
+        native.commands.run.return_value = old_handle
+        wait_entered = threading.Event()
+        stdin_called = threading.Event()
+        kill_called = threading.Event()
+        process_finished = threading.Event()
+
+        def wait_native(_timeout):
+            wait_entered.set()
+            if not process_finished.wait(5):
+                raise TimeoutError("test did not finish native process")
+            return SimpleNamespace(stdout="finished\n", stderr="", exit_code=0)
+
+        def send_stdin_native(*_args):
+            stdin_called.set()
+
+        def kill_native(_pid):
+            kill_called.set()
+            process_finished.set()
+            return True
+
+        old_handle.wait.side_effect = wait_native
+        native.commands.send_stdin.side_effect = send_stdin_native
+        native.commands.kill.side_effect = kill_native
+        session = self._create_session(native)
+        pid = self._start(session, "cat", stdin=True)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(session.commands.wait, pid, None)
+            self.assertTrue(wait_entered.wait(1))
+            try:
+                try:
+                    session.commands.send_stdin(pid, "input", False)
+                    self.assertIs(session.commands.kill(pid), True)
+                except BackendOperationError as error:
+                    self.fail(f"concurrent command operation was rejected: {error}")
+            finally:
+                process_finished.set()
+            result = future.result(timeout=1)
+
+        self.assertTrue(stdin_called.is_set())
+        self.assertTrue(kill_called.is_set())
+        self.assertEqual(result, CommandResult("finished\n", "", 0))
+
+    def test_reload_exception_clears_in_progress_flag(self):
+        native = MagicMock()
+        native.id = "default-reload-exception"
+        reload_native, reload_entered, reload_release = _blocking_native(
+            error=RuntimeError("reload failed")
+        )
+        native.reload.side_effect = reload_native
+        session = self._create_session(native)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(session.reload)
+            self.assertTrue(reload_entered.wait(1))
+            try:
+                with self.assertRaisesRegex(
+                    BackendOperationError,
+                    _OPERATION_CONFLICT,
+                ):
+                    self._start(session, "printf blocked")
+                native.commands.run.assert_not_called()
+            finally:
+                reload_release.set()
+            self.assertIs(future.result(timeout=1), False)
+
+        native.commands.run.return_value = MagicMock(pid=654)
+        pid = self._start(session, "printf after-failure")
+        self.assertEqual(pid.generation, 0)
+        native.reload.side_effect = None
+        native.reload.return_value = True
+        self.assertIs(session.reload(), True)
+
     def test_old_handle_native_failure_marks_generation_with_explicit_error(self):
         native = MagicMock()
         native.id = "default-cold-start-handle"

@@ -107,22 +107,29 @@ class _CommandsDriver:
         self._generation = 0
         self._invalid_generations: set[int] = set()
         self._generation_lock = threading.Lock()
-        self._operation_guard = threading.RLock()
+        self._operation_state_lock = threading.Lock()
+        self._active_command_operations = 0
+        self._reload_in_progress = False
 
     @contextmanager
     def _command_operation(self) -> Iterator[None]:
-        if not self._operation_guard.acquire(blocking=False):
-            raise BackendOperationError(_COMMAND_OPERATION_CONFLICT)
+        with self._operation_state_lock:
+            if self._reload_in_progress:
+                raise BackendOperationError(_COMMAND_OPERATION_CONFLICT)
+            self._active_command_operations += 1
         try:
             yield
         finally:
-            self._operation_guard.release()
+            with self._operation_state_lock:
+                self._active_command_operations -= 1
 
     def reload(self, native_reload: Callable[[], Any]) -> bool:
         """Run native reload and its generation commit as one boundary."""
 
-        if not self._operation_guard.acquire(blocking=False):
-            return False
+        with self._operation_state_lock:
+            if self._reload_in_progress or self._active_command_operations:
+                return False
+            self._reload_in_progress = True
         try:
             try:
                 reloaded = bool(native_reload())
@@ -133,7 +140,8 @@ class _CommandsDriver:
                     self._generation += 1
             return reloaded
         finally:
-            self._operation_guard.release()
+            with self._operation_state_lock:
+                self._reload_in_progress = False
 
     def _current_generation(self) -> int:
         with self._generation_lock:
