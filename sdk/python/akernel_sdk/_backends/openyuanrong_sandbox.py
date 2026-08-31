@@ -123,7 +123,11 @@ class _CommandsDriver:
             with self._operation_state_lock:
                 self._active_command_operations -= 1
 
-    def reload(self, native_reload: Callable[[], Any]) -> bool:
+    def reload(
+        self,
+        native_reload: Callable[[], Any],
+        recovery_mode: Callable[[], Any],
+    ) -> bool:
         """Run native reload and its generation commit as one boundary."""
 
         with self._operation_state_lock:
@@ -136,8 +140,14 @@ class _CommandsDriver:
             except Exception:
                 return False
             if reloaded:
+                try:
+                    mode = recovery_mode()
+                except Exception:
+                    mode = None
                 with self._generation_lock:
                     self._generation += 1
+                    if mode == "cold-start":
+                        self._invalid_generations.update(range(self._generation))
             return reloaded
         finally:
             with self._operation_state_lock:
@@ -379,7 +389,10 @@ class _Session:
     def reload(self) -> bool:
         if self._terminated or self._closed:
             return False
-        return self.commands.reload(self._sandbox.reload)
+        return self.commands.reload(
+            self._sandbox.reload,
+            lambda: getattr(self._sandbox, "_last_reload_mode", None),
+        )
 
     def checkpoint(self, *, timeout: int) -> str:
         if self._terminated or self._closed:

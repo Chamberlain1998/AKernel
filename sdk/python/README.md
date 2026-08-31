@@ -124,7 +124,15 @@ PTY factories remain owned by the original `Sandbox` object; no replacement
 handle is returned. Completed `CommandResult` values remain readable. A cold
 start does not preserve sandbox memory, writable-file changes, or the RRT
 process table, so an incomplete command handle from the old runtime fails
-instead of being associated with a PID in the new runtime.
+instead of being associated with a PID in the new runtime. The frontend and
+native Sandbox SDK propagate the selected recovery mode through an internal,
+optional compatibility field; the public `reload() -> bool` contract is
+unchanged. A `cold-start` result invalidates all pre-reload command handles
+before another command operation can start, even when the new runtime reuses a
+PID. Older servers that do not return the field retain conservative legacy
+behavior: an old handle is rejected after its first native operation proves it
+was not restored, so callers must not rely on the first operation failing
+locally until the server and native SDK are upgraded together.
 
 ### Experimental GPU and writable storage
 

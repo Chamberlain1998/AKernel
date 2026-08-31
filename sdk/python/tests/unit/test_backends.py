@@ -577,6 +577,68 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
             CommandResult("restored\n", "", 0),
         )
 
+    def test_cold_start_mode_invalidates_old_pid_before_native_operations(self):
+        native = MagicMock()
+        native.id = "default-authoritative-cold-start"
+
+        def reload_native():
+            native._last_reload_mode = "cold-start"
+            return True
+
+        native.reload.side_effect = reload_native
+        native.commands.run.return_value = MagicMock(pid=321)
+        native.commands.kill.return_value = True
+        session = self._create_session(native)
+        pid = self._start(session, "cat", stdin=True)
+
+        self.assertIs(session.reload(), True)
+
+        with self.assertRaisesRegex(BackendOperationError, _COLD_START_HANDLE_ERROR):
+            session.commands.kill(pid)
+        with self.assertRaisesRegex(BackendOperationError, _COLD_START_HANDLE_ERROR):
+            session.commands.send_stdin(pid, "input", False)
+        native.commands.kill.assert_not_called()
+        native.commands.send_stdin.assert_not_called()
+
+    def test_snapshot_mode_keeps_old_pid_native_operations_available(self):
+        native = MagicMock()
+        native.id = "default-authoritative-snapshot"
+
+        def reload_native():
+            native._last_reload_mode = "snapshot"
+            return True
+
+        native.reload.side_effect = reload_native
+        native.commands.run.return_value = MagicMock(pid=321)
+        native.commands.kill.return_value = True
+        session = self._create_session(native)
+        pid = self._start(session, "cat", stdin=True)
+
+        self.assertIs(session.reload(), True)
+
+        self.assertIs(session.commands.kill(pid), True)
+        session.commands.send_stdin(pid, "input", False)
+        native.commands.kill.assert_called_once_with(321)
+        native.commands.send_stdin.assert_called_once_with(321, "input", False)
+
+    def test_old_native_sdk_without_reload_mode_keeps_conservative_behavior(self):
+        commands = MagicMock()
+        commands.run.return_value = MagicMock(pid=321)
+        commands.kill.return_value = True
+        native = SimpleNamespace(
+            id="default-old-sdk",
+            commands=commands,
+            files=MagicMock(),
+            reload=MagicMock(return_value=True),
+        )
+        session = self._create_session(native)
+        pid = self._start(session)
+
+        self.assertIs(session.reload(), True)
+
+        self.assertIs(session.commands.kill(pid), True)
+        commands.kill.assert_called_once_with(321)
+
     def test_reload_false_does_not_advance_or_invalidate_handle_generation(self):
         native = MagicMock()
         native.id = "default-failed-reload-handle"
