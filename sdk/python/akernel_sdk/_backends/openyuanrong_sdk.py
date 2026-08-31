@@ -20,7 +20,12 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
-from ..types import CommandInfo, CommandResult, EntryInfo, SandboxInfo
+from ..types import (
+    CommandInfo,
+    CommandResult,
+    EntryInfo,
+    SandboxInfo,
+)
 from . import openyuanrong_sdk_impl as _impl
 from .base import (
     Backend,
@@ -29,7 +34,7 @@ from .base import (
     Capability,
     SandboxSpec,
 )
-from .errors import BackendOperationError
+from .errors import BackendOperationError, UnsupportedBackendFeatureError
 from .openyuanrong_sdk_commands import (
     CommandHandle as NativeCommandHandle,
 )
@@ -238,6 +243,12 @@ class _Session:
             storage_mb=self._spec.storage_mb,
         )
 
+    def reload(self) -> bool:
+        raise UnsupportedBackendFeatureError(
+            "Backend 'openyuanrong-sdk' does not support sandbox reload. "
+            "Use the default 'openyuanrong-sandbox' backend."
+        )
+
     def terminate(self) -> None:
         if self._terminated:
             return
@@ -265,12 +276,17 @@ class OpenYuanRongSdkBackend:
 
     name = "openyuanrong-sdk"
     namespace = _NAMESPACE
-    capabilities = frozenset(Capability)
+    capabilities: frozenset[Capability] = frozenset(Capability)
 
     def __init__(self, _config: BackendConfig) -> None:
         _impl.ensure_initialized()
 
     def create(self, spec: SandboxSpec) -> BackendSession:
+        if spec.failover:
+            raise UnsupportedBackendFeatureError(
+                "Backend 'openyuanrong-sdk' does not support automatic sandbox "
+                "failover. Use the default 'openyuanrong-sandbox' backend."
+            )
         options = _impl.build_options(
             image=spec.image,
             rootfs=spec.rootfs,

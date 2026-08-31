@@ -9,13 +9,14 @@ ARG PYTHON_311_VERSION=3.11.13
 ARG PYTHON_312_VERSION=3.12.11
 ARG PYTHON_313_VERSION=3.13.5
 ARG PYTHON_314_VERSION=3.14.6
-ARG OPEN_YR_VERSION=0.9.9
+ARG OPEN_YR_VERSION=0.10.1rc3
+ARG OPEN_YR_LEGACY_SDK_VERSION=0.9.9
 
 FROM ${AKERNEL_RUNTIME_BASE_IMAGE} AS rrt-download
 
 ARG OPEN_YR_VERSION
-ARG RRT_RUNTIME_URL=https://github.com/openYuanrong-mirror/yuanrong/releases/download/${OPEN_YR_VERSION}/rrt-runtime-amd64
-ARG RRT_RUNTIME_SHA256=d2e5a43cd1d384e0c58174821fc787e7946fb330b23021769a823625a2401274
+ARG RRT_RUNTIME_URL=https://openyuanrong.obs.cn-southwest-2.myhuaweicloud.com/release/${OPEN_YR_VERSION}/linux/amd64/rrt-runtime-amd64
+ARG RRT_RUNTIME_SHA256=c22d3c95b38845763e9f27553a065a959458743bbf42358c609bc2f1f9fce789
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
@@ -75,7 +76,7 @@ ARG PYTHON_311_VERSION
 ARG PYTHON_312_VERSION
 ARG PYTHON_313_VERSION
 ARG PYTHON_314_VERSION
-ARG OPEN_YR_VERSION
+ARG OPEN_YR_LEGACY_SDK_VERSION
 ARG FASTAPI_VERSION=0.138.0
 ARG PYDANTIC_VERSION=2.13.4
 ARG UVICORN_VERSION=0.49.0
@@ -146,7 +147,7 @@ RUN set -eux; \
                 "fastapi==${FASTAPI_VERSION}" \
                 "pydantic==${PYDANTIC_VERSION}" \
                 "uvicorn==${UVICORN_VERSION}" \
-                "openyuanrong_sdk==${OPEN_YR_VERSION}" && break; \
+                "openyuanrong_sdk==${OPEN_YR_LEGACY_SDK_VERSION}" && break; \
             if [ "${attempt}" -ge 3 ]; then exit 1; fi; \
             sleep $((attempt * 5)); \
             attempt=$((attempt + 1)); \

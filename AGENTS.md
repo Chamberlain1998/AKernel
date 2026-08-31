@@ -123,6 +123,11 @@ runtimes and `openyuanrong_sdk`. `builder/node.Dockerfile` then compiles the
 node components and produces the AKernel all-in-one image using the selected
 runtime image and its matching service configuration.
 
+The control-plane and RRT release version is independent of the optional
+actor-based `openyuanrong_sdk` installed in the Python runtime profile. Keep
+the latter on its explicitly pinned legacy version unless that backend is
+being upgraded and tested as a separate compatibility change.
+
 Initialize submodules with `git submodule update --init --recursive` before
 building. The all-in-one image builds the sandboxd binaries, including
 `firecracker-agent`, and `distill_fs`; installs checksum-pinned gVisor and Kata
@@ -150,6 +155,10 @@ To test an unreleased openYuanRong core wheel without rebuilding YuanRong,
 provide both `OPEN_YR_CORE_WHEEL_URL` and `OPEN_YR_CORE_WHEEL_SHA256` to
 `make build`. The complete wheel is verified before it replaces the pinned
 release control plane.
+
+To test an unreleased RRT binary, provide both `RRT_RUNTIME_URL` and
+`RRT_RUNTIME_SHA256` to `make build`. The runtime build verifies the binary
+before packaging it into the selected runtime root filesystem.
 
 Inspect the selected local versions without building an image:
 
@@ -293,6 +302,21 @@ with Sandbox(cpu=2000, memory=4096) as sb:
     print(result.stdout)
 ```
 
+Same-node failover and explicit rollback retain the logical sandbox identity:
+
+```python
+with Sandbox(failover=True) as sb:
+    if not sb.reload():
+        print("no local checkpoint is available")
+```
+
+The current functional integration deliberately leaves anonymous local
+checkpoint creation inside the workload through RRT's internal Unix socket.
+The node sets `YR_RRT_CONTROL_SOCKET_PATH=/run/akernel`, making the socket
+available at `/run/akernel/rrt.sock`. Do not present that socket protocol as a
+stable public SDK interface or add public checkpoint catalog methods to the
+SDK.
+
 Select Kata explicitly only when the cluster has an eligible node:
 
 ```python
@@ -369,6 +393,16 @@ bind-mounted `deploy/standalone/data/` directory. Explicit `storage_mb`
 quotas for runsc and Firecracker use this local-disk filestore. Without an
 explicit quota, runsc retains its configured memory-backed overlay while
 Firecracker creates its configured sparse ext4 default.
+
+The bundled node enables YuanRong's local-only sandbox snapshot data plane and
+stores checkpoint state under the persistent `/home/akernel/checkpoints`
+mount. RRT receives
+`YR_RRT_CONTROL_SOCKET_PATH=/run/akernel` so sandbox workloads can trigger
+their local checkpoint handoff through `/run/akernel/rrt.sock`. Recovery points
+follow the source sandbox lifecycle. The public SDK exposes only failover and
+reload, not checkpoint identifiers, restore, list, delete, or snapshot TTLs.
+Keep local-only snapshot mode and the persistent checkpoint directory
+configured together when changing node startup arguments.
 
 Keep detailed SDK reference material with the SDK. The root README should
 contain only the project-level entry points and representative examples:

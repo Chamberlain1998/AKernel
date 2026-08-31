@@ -72,6 +72,7 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(dict(spec.env), {})
         self.assertIsNone(spec.xpu)
         self.assertIsNone(spec.storage_mb)
+        self.assertFalse(spec.failover)
         self.assertIsNone(spec.network_policy)
         self.assertEqual(dict(spec.extra_config), {})
         sandbox.kill()
@@ -168,6 +169,42 @@ class SandboxTest(unittest.TestCase):
     def test_named_delete_hides_backend_namespace(self):
         Sandbox.delete("worker")
         self.backend.delete_named.assert_called_once_with("worker")
+
+    def test_failover_is_validated_and_forwarded(self):
+        sandbox = Sandbox(failover=True)
+        spec = self.backend.create.call_args.args[0]
+        self.assertTrue(spec.failover)
+        sandbox.kill()
+
+        with self.assertRaisesRegex(TypeError, "failover must be a boolean"):
+            Sandbox(failover=1)
+
+    def test_reload_preserves_identity_and_facades(self):
+        self.session.reload.return_value = True
+        sandbox = Sandbox(failover=True)
+        identity = sandbox.id
+        commands = sandbox.commands
+        files = sandbox.files
+        pty = sandbox.pty
+
+        self.assertTrue(sandbox.reload())
+        self.assertEqual(sandbox.id, identity)
+        self.assertIs(sandbox.commands, commands)
+        self.assertIs(sandbox.files, files)
+        self.assertIs(sandbox.pty, pty)
+        self.session.reload.assert_called_once_with()
+
+        sandbox.kill()
+        self.assertFalse(sandbox.reload())
+        self.session.reload.assert_called_once_with()
+
+    def test_reload_returns_false_when_backend_does_not_complete(self):
+        self.session.reload.return_value = False
+        sandbox = Sandbox(failover=True)
+
+        self.assertFalse(sandbox.reload())
+
+        sandbox.kill()
 
     def test_rootfs_requires_s3_config(self):
         with self.assertRaisesRegex(TypeError, "S3Config"):

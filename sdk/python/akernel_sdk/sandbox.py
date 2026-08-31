@@ -32,7 +32,13 @@ from ._sandbox_resources import normalize_xpu, validate_storage_mb
 from .commands import CommandHandle, Commands
 from .filesystem import Filesystem
 from .pty import Pty
-from .types import HttpReverseTunnel, Mount, NetworkPolicy, S3Config, SandboxInfo
+from .types import (
+    HttpReverseTunnel,
+    Mount,
+    NetworkPolicy,
+    S3Config,
+    SandboxInfo,
+)
 
 _traefik_internal_ip_cache: str | None = None
 logger = logging.getLogger(__name__)
@@ -186,6 +192,7 @@ class Sandbox:
         detached: bool = False,
         node_id: str | None = None,
         *,
+        failover: bool = False,
         xpu: str | None = None,
         storage_mb: int | None = None,
         network_policy: NetworkPolicy | None = None,
@@ -213,6 +220,9 @@ class Sandbox:
             reverse_tunnel: SDK-side HTTP service exposed inside the sandbox.
             detached: Keep the sandbox alive when this client closes.
             node_id: Require placement on a specific AKernel node.
+            failover: Restore the same logical sandbox on its original node
+                from the latest local anonymous checkpoint after failure.
+                Use :meth:`reload` to request the same rollback explicitly.
             xpu: Experimental whole-device accelerator request in
                 ``type:model:count`` format. Currently only exact-model NVIDIA
                 GPU requests are supported. The backend validates runtime
@@ -291,6 +301,8 @@ class Sandbox:
                 raise ValueError("cwd must be an absolute POSIX path")
         if not isinstance(detached, bool):
             raise TypeError("detached must be a boolean")
+        if not isinstance(failover, bool):
+            raise TypeError("failover must be a boolean")
         if node_id is not None:
             if not isinstance(node_id, str):
                 raise TypeError("node_id must be a string")
@@ -354,6 +366,7 @@ class Sandbox:
             mounts=tuple(mount_list),
             reverse_tunnel=reverse_tunnel,
             detached=detached,
+            failover=failover,
             node_id=node_id,
             xpu=normalized_xpu,
             storage_mb=storage_mb,
@@ -433,7 +446,7 @@ class Sandbox:
 
     @property
     def id(self) -> str:
-        """Physical sandbox ID, matching the value displayed by ``ak list``."""
+        """Logical sandbox ID, matching the value displayed by ``ak list``."""
 
         return self._id
 
@@ -442,6 +455,19 @@ class Sandbox:
         """Configured reverse tunnel, or ``None`` when it is disabled."""
 
         return self._reverse_tunnel
+
+    def reload(self) -> bool:
+        """Roll this sandbox back to its latest local anonymous checkpoint.
+
+        The logical sandbox identity and existing command, filesystem, and PTY
+        facades remain valid. ``False`` means that the rollback was not
+        completed, including when no usable checkpoint exists, the sandbox has
+        already been closed, or the backend reports an operational failure.
+        """
+
+        if self._closed or self._session is None:
+            return False
+        return self._session.reload()
 
     def get_port_url(self, port: int, *, internal: bool = False) -> str:
         """Return the gateway URL for a declared sandbox port.

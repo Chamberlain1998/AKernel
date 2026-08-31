@@ -57,6 +57,14 @@ rather than tmpfs. Without `storage_mb`, runsc retains its configured
 memory-backed overlay while Firecracker uses its configured sparse ext4
 default.
 
+Sandbox checkpoints for runsc and Firecracker use YuanRong's local-only
+snapshot mode. Checkpoint state is kept under the persistent
+`/home/akernel/checkpoints` data mount. Workloads trigger an anonymous recovery
+point through `POST /checkpoint` on `/run/akernel/rrt.sock`, and the SDK can
+reload the same logical sandbox from the latest usable point. Recovery points
+follow the source sandbox lifecycle; they are not exposed as reusable SDK
+objects.
+
 `start.sh` loads the host `tun` module and verifies `/dev/net/tun` before
 starting the pooled-TAP runtimes. Runc retains its separate veth network path.
 

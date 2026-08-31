@@ -16,13 +16,19 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 from collections.abc import Mapping
 from typing import Any
 
 import yr_sandbox
 
-from ..types import CommandInfo, CommandResult, EntryInfo, SandboxInfo
+from ..types import (
+    CommandInfo,
+    CommandResult,
+    EntryInfo,
+    SandboxInfo,
+)
 from .base import (
     Backend,
     BackendConfig,
@@ -38,6 +44,23 @@ _DEFAULT_LISTEN_PORT = 8766
 
 def _convert_error(operation: str, error: Exception) -> BackendOperationError:
     return BackendOperationError(f"{operation} failed: {error}")
+
+
+def _supports_keyword(callable_value: Any, name: str) -> bool:
+    """Return whether a native callable accepts one keyword argument."""
+
+    try:
+        parameters = inspect.signature(callable_value).parameters.values()
+    except (TypeError, ValueError):
+        # Extension and dynamically generated callables may not expose a
+        # signature. Treat those as current backends and preserve their native
+        # error if the keyword is rejected.
+        return True
+    return any(
+        parameter.name == name
+        or parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
 
 
 def _command_result(value: Any) -> CommandResult:
@@ -246,6 +269,20 @@ class _Session:
             storage_mb=self._spec.storage_mb,
         )
 
+    def reload(self) -> bool:
+        if self._terminated or self._closed:
+            return False
+        reload_sandbox = getattr(self._sandbox, "reload", None)
+        if not callable(reload_sandbox):
+            raise UnsupportedBackendFeatureError(
+                "The installed openyuanrong-sandbox backend does not support "
+                "sandbox reload. Upgrade it to a version with failover support."
+            )
+        try:
+            return bool(reload_sandbox())
+        except Exception:
+            return False
+
     def terminate(self) -> None:
         if self._terminated:
             return
@@ -302,6 +339,13 @@ class OpenYuanRongSandboxBackend:
 
     def create(self, spec: SandboxSpec) -> BackendSession:
         self._validate(spec)
+        supports_failover = _supports_keyword(yr_sandbox.Sandbox, "failover")
+        if spec.failover and not supports_failover:
+            raise UnsupportedBackendFeatureError(
+                "The installed openyuanrong-sandbox backend does not support "
+                "automatic sandbox failover. Upgrade it to a version with "
+                "failover support."
+            )
         rootfs = None
         if spec.rootfs is not None:
             rootfs = yr_sandbox.S3Config(
@@ -337,45 +381,48 @@ class OpenYuanRongSandboxBackend:
             for mount in spec.mounts
         ]
         create_timeout = max(60, spec.schedule_timeout + 30)
+        create_args = dict(
+            image=spec.image,
+            rootfs=rootfs,
+            runtime=spec.runtime,
+            cpu=spec.cpu,
+            memory=spec.memory,
+            cpu_limit=spec.cpu_limit,
+            mem_limit=spec.mem_limit,
+            idle_timeout=spec.idle_timeout,
+            schedule_timeout=spec.schedule_timeout,
+            env=dict(spec.env),
+            name=spec.name,
+            cwd=spec.command_cwd,
+            port_forwardings=list(spec.port_forwardings),
+            mounts=mounts,
+            upstream=(
+                spec.reverse_tunnel.target
+                if spec.reverse_tunnel is not None
+                else None
+            ),
+            tunnel_connect_timeout=(
+                spec.reverse_tunnel.connect_timeout
+                if spec.reverse_tunnel is not None
+                else None
+            ),
+            proxy_port=(
+                spec.reverse_tunnel.listen_port
+                if spec.reverse_tunnel is not None
+                else _DEFAULT_LISTEN_PORT
+            ),
+            detached=spec.detached,
+            node_id=spec.node_id,
+            xpu=spec.xpu,
+            storage_mb=spec.storage_mb,
+            network=network,
+            extra_config=dict(spec.extra_config),
+            create_timeout=create_timeout,
+        )
+        if supports_failover:
+            create_args["failover"] = spec.failover
         try:
-            sandbox = yr_sandbox.Sandbox(
-                image=spec.image,
-                rootfs=rootfs,
-                runtime=spec.runtime,
-                cpu=spec.cpu,
-                memory=spec.memory,
-                cpu_limit=spec.cpu_limit,
-                mem_limit=spec.mem_limit,
-                idle_timeout=spec.idle_timeout,
-                schedule_timeout=spec.schedule_timeout,
-                env=dict(spec.env),
-                name=spec.name,
-                cwd=spec.command_cwd,
-                port_forwardings=list(spec.port_forwardings),
-                mounts=mounts,
-                upstream=(
-                    spec.reverse_tunnel.target
-                    if spec.reverse_tunnel is not None
-                    else None
-                ),
-                tunnel_connect_timeout=(
-                    spec.reverse_tunnel.connect_timeout
-                    if spec.reverse_tunnel is not None
-                    else None
-                ),
-                proxy_port=(
-                    spec.reverse_tunnel.listen_port
-                    if spec.reverse_tunnel is not None
-                    else _DEFAULT_LISTEN_PORT
-                ),
-                detached=spec.detached,
-                node_id=spec.node_id,
-                xpu=spec.xpu,
-                storage_mb=spec.storage_mb,
-                network=network,
-                extra_config=dict(spec.extra_config),
-                create_timeout=create_timeout,
-            )
+            sandbox = yr_sandbox.Sandbox(**create_args)
         except Exception as error:
             raise _convert_error("create sandbox", error) from error
         return _Session(sandbox, spec)

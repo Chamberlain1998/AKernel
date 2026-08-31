@@ -59,6 +59,7 @@ def _spec(**overrides):
         "mounts": (),
         "reverse_tunnel": None,
         "detached": False,
+        "failover": False,
         "node_id": None,
         "xpu": None,
         "storage_mb": None,
@@ -196,6 +197,51 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
             sandbox_type.call_args.kwargs["extra_config"],
             {"featureFlag": True},
         )
+
+    def test_failover_is_forwarded_to_capable_native_sdk(self):
+        native = MagicMock()
+        native.id = "default-failover"
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ) as sandbox_type:
+            self.backend.create(_spec(failover=True))
+
+        self.assertIs(sandbox_type.call_args.kwargs["failover"], True)
+
+    def test_old_native_sdk_omits_disabled_failover(self):
+        native = MagicMock()
+        native.id = "default-compatible"
+        with (
+            patch.object(
+                openyuanrong_sandbox.yr_sandbox,
+                "Sandbox",
+                return_value=native,
+            ) as sandbox_type,
+            patch.object(
+                openyuanrong_sandbox,
+                "_supports_keyword",
+                return_value=False,
+            ),
+        ):
+            self.backend.create(_spec())
+
+        self.assertNotIn("failover", sandbox_type.call_args.kwargs)
+
+    def test_old_native_sdk_rejects_enabled_failover(self):
+        with (
+            patch.object(
+                openyuanrong_sandbox,
+                "_supports_keyword",
+                return_value=False,
+            ),
+            self.assertRaisesRegex(
+                UnsupportedBackendFeatureError,
+                "automatic sandbox failover",
+            ),
+        ):
+            self.backend.create(_spec(failover=True))
 
     def test_explicit_kata_image_is_forwarded_to_native_sdk(self):
         native = MagicMock()
@@ -464,6 +510,52 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
             self.backend.delete_named("worker")
         delete.assert_called_once_with("default-worker")
 
+    def test_reload_preserves_native_session(self):
+        native = MagicMock()
+        native.id = "default-source"
+        native.commands = MagicMock()
+        native.files = MagicMock()
+        native.reload.return_value = True
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec(failover=True))
+
+        self.assertTrue(session.reload())
+        self.assertEqual(session.id, "default-source")
+        native.reload.assert_called_once_with()
+
+    def test_reload_returns_false_when_native_operation_fails(self):
+        native = MagicMock()
+        native.id = "default-source"
+        native.commands = MagicMock()
+        native.files = MagicMock()
+        native.reload.side_effect = RuntimeError("reload failed")
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec(failover=True))
+
+        self.assertFalse(session.reload())
+        native.reload.assert_called_once_with()
+
+    def test_reload_requires_capable_native_sdk(self):
+        native = SimpleNamespace(
+            id="default-source",
+            commands=MagicMock(),
+            files=MagicMock(),
+        )
+        session = openyuanrong_sandbox._Session(native, _spec())
+
+        with self.assertRaisesRegex(
+            UnsupportedBackendFeatureError,
+            "does not support sandbox reload",
+        ):
+            session.reload()
 
 class OpenYuanRongSdkBackendTest(unittest.TestCase):
     def setUp(self):
@@ -509,6 +601,18 @@ class OpenYuanRongSdkBackendTest(unittest.TestCase):
 
         self.assertIs(raised.exception.__cause__, physical_id_error)
         terminate.assert_called_once_with(instance)
+
+    def test_failover_is_explicitly_unsupported(self):
+        with (
+            patch.object(openyuanrong_sdk._impl, "build_options") as build_options,
+            self.assertRaisesRegex(
+                UnsupportedBackendFeatureError,
+                "automatic sandbox failover",
+            ),
+        ):
+            self.backend.create(_spec(failover=True))
+
+        build_options.assert_not_called()
 
     def test_rollback_failure_does_not_replace_physical_id_error(self):
         instance = MagicMock()
@@ -597,7 +701,6 @@ class OpenYuanRongSdkBackendTest(unittest.TestCase):
             self.backend.close()
 
         finalize.assert_called_once_with()
-
 
 if __name__ == "__main__":
     unittest.main()

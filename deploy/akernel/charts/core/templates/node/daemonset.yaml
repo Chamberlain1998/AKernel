@@ -72,7 +72,7 @@ spec:
               - bash
               - -c
               - |
-                cp /etc/resolv.conf /etc/resolv_akernel.conf && sed -i 's/127.0.0.1/172.17.0.1/g' /etc/resolv_akernel.conf
+                cp /etc/resolv.conf /etc/resolv_akernel.conf && sed -i 's/127.0.0.1/10.88.0.1/g' /etc/resolv_akernel.conf
         resources:
           {{- toYaml .Values.node.resources | nindent 10 }}
         env:
@@ -80,6 +80,8 @@ spec:
           value: "node"
         - name: RUNSC_AKERNEL
           value: "1"
+        - name: YR_RRT_CONTROL_SOCKET_PATH
+          value: "/run/akernel"
         - name: ETCD_ADDRESS
           value: {{ get $nodeEtcd "host" | default (printf "akernel-etcd.%s.svc.cluster.local" .Release.Namespace) | quote }}
         - name: ETCD_PORT

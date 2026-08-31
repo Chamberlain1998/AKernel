@@ -22,6 +22,7 @@ It supports two backends:
   - [Filesystem](#filesystem)
   - [Interactive PTYs](#interactive-ptys)
   - [Port forwarding](#port-forwarding)
+  - [Local failover and reload](#local-failover-and-reload)
   - [Reverse tunnels](#reverse-tunnels)
   - [Rootfs and mounts](#rootfs-and-mounts)
   - [Launch from a Dockerfile](#launch-from-a-dockerfile)
@@ -354,6 +355,37 @@ with Sandbox(port_forwardings=[8080]) as sandbox:
 deployment operator explicitly wants the direct Traefik address instead of the
 public gateway.
 
+## Local failover and reload
+
+`Sandbox(failover=True)` opts into same-node recovery of the same logical
+sandbox after its physical runtime fails. `sandbox.reload()` requests the same
+rollback explicitly. It returns `False` whenever the rollback is not completed,
+including when no usable local anonymous checkpoint exists, the sandbox is
+already closed, or the backend reports an operational failure. A successful
+reload preserves `sandbox.id` and the existing commands, filesystem, and PTY
+facades.
+
+Recovery points are local and follow the source sandbox lifecycle. They are
+created by sandbox workloads through RRT's internal `POST /checkpoint`
+endpoint on `/run/akernel/rrt.sock`. A successful request returns
+`{"status":"completed"}`; a concurrent checkpoint request returns HTTP 409.
+This Unix-socket protocol is experimental and is not a stable public AKernel
+SDK interface. The SDK deliberately does not expose checkpoint identifiers,
+restore, list, or delete operations.
+
+The bundled runsc and Firecracker runtimes support this recovery flow. The
+maintained example validates it with runsc and installs curl in the sandbox
+before calling the internal Unix-socket endpoint, so the default RRT runtime
+profile is sufficient:
+
+```bash
+AKERNEL_TEST_RUNTIME=runsc python examples/failover_reload.py
+```
+
+See [`examples/failover_reload.py`](./examples/failover_reload.py) for the
+internal trigger used during integration. The actor-based
+`openyuanrong-sdk` backend does not support failover or reload.
+
 ## Reverse tunnels
 
 A reverse tunnel lets sandbox code call an HTTP or HTTPS service reachable
@@ -523,6 +555,7 @@ Maintained examples are under [`examples/`](./examples):
 - `command_stdin.py`
 - `custom_image.py`
 - `dockerfile_launch.py`
+- `failover_reload.py`
 - `gpu_sandbox.py`
 - `named_sandbox.py`
 - `network_policy.py`

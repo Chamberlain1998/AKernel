@@ -166,6 +166,22 @@ jobs:
             timeout 120s python "sdk/python/examples/${example}"
           done
 
+      - name: Run runsc checkpoint reload E2E
+        run: |
+          gateway_ip="$(docker inspect \
+            --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+            akernel-traefik)"
+          test -n "${gateway_ip}"
+          token="$(cat deploy/standalone/data/token)"
+          export AKERNEL_TOKEN="${token}"
+          export AKERNEL_SERVER_ADDRESS="${gateway_ip}"
+          export AKERNEL_RUN_INTEGRATION=1
+          export PYTHONPATH="${GITHUB_WORKSPACE}/sdk/python"
+
+          AKERNEL_TEST_RUNTIME=runsc timeout 600s python \
+            sdk/python/tests/integration/test_sandbox.py \
+            SandboxReloadIntegrationTest -v
+
       - name: Show standalone diagnostics
         if: failure()
         run: |

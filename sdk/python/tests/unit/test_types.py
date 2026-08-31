@@ -19,7 +19,12 @@ import unittest
 from pathlib import Path
 
 import akernel_sdk
-from akernel_sdk import DockerContextEntry, HttpReverseTunnel, Mount, S3Config
+from akernel_sdk import (
+    DockerContextEntry,
+    HttpReverseTunnel,
+    Mount,
+    S3Config,
+)
 
 
 class PublicTypesTest(unittest.TestCase):

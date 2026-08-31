@@ -72,6 +72,7 @@ class SandboxSpec:
     mounts: tuple[Mount, ...]
     reverse_tunnel: HttpReverseTunnel | None
     detached: bool
+    failover: bool
     node_id: str | None
     xpu: str | None
     storage_mb: int | None
@@ -148,6 +149,8 @@ class BackendSession(Protocol):
     def is_running(self) -> bool: ...
 
     def get_info(self) -> SandboxInfo: ...
+
+    def reload(self) -> bool: ...
 
     def terminate(self) -> None: ...
 
