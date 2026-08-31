@@ -129,10 +129,15 @@ native Sandbox SDK propagate the selected recovery mode through an internal,
 optional compatibility field; the public `reload() -> bool` contract is
 unchanged. A `cold-start` result invalidates all pre-reload command handles
 before another command operation can start, even when the new runtime reuses a
-PID. Older servers that do not return the field retain conservative legacy
-behavior: an old handle is rejected after its first native operation proves it
-was not restored, so callers must not rely on the first operation failing
-locally until the server and native SDK are upgraded together.
+PID. After an authoritative cold start, raw integer PID operations (`wait`,
+`kill`, and `send_stdin`) also fail locally because an integer carries no
+generation identity; this remains true even for `int(new_handle.pid)`, while
+the tracked new-generation handle itself works normally. Snapshot recovery
+does not enable this restriction. Older servers that do not return the field
+retain conservative legacy behavior: an old handle is rejected after its first
+native operation proves it was not restored, so callers must not rely on the
+first operation failing locally until the server and native SDK are upgraded
+together.
 
 ### Experimental GPU and writable storage
 

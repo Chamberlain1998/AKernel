@@ -600,6 +600,65 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
         native.commands.kill.assert_not_called()
         native.commands.send_stdin.assert_not_called()
 
+    def test_cold_start_mode_rejects_plain_pid_before_native_operations(self):
+        native = MagicMock()
+        native.id = "default-authoritative-cold-start-plain-pid"
+
+        def reload_native():
+            native._last_reload_mode = "cold-start"
+            return True
+
+        native.reload.side_effect = reload_native
+        old_handle = MagicMock(pid=321)
+        old_handle.wait.return_value = SimpleNamespace(
+            stdout="wrong runtime\n", stderr="", exit_code=0
+        )
+        native.commands.run.return_value = old_handle
+        native.commands.kill.return_value = True
+        session = self._create_session(native)
+        pid = self._start(session, "cat", stdin=True)
+
+        self.assertIs(session.reload(), True)
+
+        plain_pid = int(pid)
+        with self.assertRaisesRegex(BackendOperationError, _COLD_START_HANDLE_ERROR):
+            session.commands.wait(plain_pid, 30)
+        with self.assertRaisesRegex(BackendOperationError, _COLD_START_HANDLE_ERROR):
+            session.commands.kill(plain_pid)
+        with self.assertRaisesRegex(BackendOperationError, _COLD_START_HANDLE_ERROR):
+            session.commands.send_stdin(plain_pid, "input", False)
+        old_handle.wait.assert_not_called()
+        native.commands.kill.assert_not_called()
+        native.commands.send_stdin.assert_not_called()
+
+    def test_plain_pid_remains_fail_closed_for_new_generation_after_cold_start(self):
+        native = MagicMock()
+        native.id = "default-new-generation-plain-pid"
+
+        def reload_native():
+            native._last_reload_mode = "cold-start"
+            return True
+
+        native.reload.side_effect = reload_native
+        old_handle = MagicMock(pid=321)
+        new_handle = MagicMock(pid=321)
+        new_handle.wait.return_value = SimpleNamespace(
+            stdout="new runtime\n", stderr="", exit_code=0
+        )
+        native.commands.run.side_effect = [old_handle, new_handle]
+        session = self._create_session(native)
+        self._start(session)
+        self.assertIs(session.reload(), True)
+        new_pid = self._start(session, "printf new")
+
+        self.assertEqual(
+            session.commands.wait(new_pid, 30),
+            CommandResult("new runtime\n", "", 0),
+        )
+        with self.assertRaisesRegex(BackendOperationError, _COLD_START_HANDLE_ERROR):
+            session.commands.wait(int(new_pid), 30)
+        new_handle.wait.assert_called_once_with(30)
+
     def test_snapshot_mode_keeps_old_pid_native_operations_available(self):
         native = MagicMock()
         native.id = "default-authoritative-snapshot"
@@ -620,6 +679,25 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
         session.commands.send_stdin(pid, "input", False)
         native.commands.kill.assert_called_once_with(321)
         native.commands.send_stdin.assert_called_once_with(321, "input", False)
+
+    def test_snapshot_mode_keeps_plain_pid_operations_available(self):
+        native = MagicMock()
+        native.id = "default-authoritative-snapshot-plain-pid"
+
+        def reload_native():
+            native._last_reload_mode = "snapshot"
+            return True
+
+        native.reload.side_effect = reload_native
+        native.commands.run.return_value = MagicMock(pid=321)
+        native.commands.kill.return_value = True
+        session = self._create_session(native)
+        pid = self._start(session)
+
+        self.assertIs(session.reload(), True)
+
+        self.assertIs(session.commands.kill(int(pid)), True)
+        native.commands.kill.assert_called_once_with(321)
 
     def test_old_native_sdk_without_reload_mode_keeps_conservative_behavior(self):
         commands = MagicMock()

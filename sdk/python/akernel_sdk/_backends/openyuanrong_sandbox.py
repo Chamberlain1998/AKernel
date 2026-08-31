@@ -106,6 +106,7 @@ class _CommandsDriver:
         self._handles: dict[int, Any] = {}
         self._generation = 0
         self._invalid_generations: set[int] = set()
+        self._raw_pid_operations_invalid = False
         self._generation_lock = threading.Lock()
         self._operation_state_lock = threading.Lock()
         self._active_command_operations = 0
@@ -148,6 +149,7 @@ class _CommandsDriver:
                     self._generation += 1
                     if mode == "cold-start":
                         self._invalid_generations.update(range(self._generation))
+                        self._raw_pid_operations_invalid = True
             return reloaded
         finally:
             with self._operation_state_lock:
@@ -165,6 +167,12 @@ class _CommandsDriver:
     def _ensure_generation_valid(self, pid: _TrackedCommandPid) -> None:
         with self._generation_lock:
             invalid = pid.generation in self._invalid_generations
+        if invalid:
+            raise self._cold_start_handle_error(pid)
+
+    def _ensure_raw_pid_operations_valid(self, pid: int) -> None:
+        with self._generation_lock:
+            invalid = self._raw_pid_operations_invalid
         if invalid:
             raise self._cold_start_handle_error(pid)
 
@@ -233,6 +241,7 @@ class _CommandsDriver:
                 self._ensure_generation_valid(tracked)
                 handle = tracked.native_handle
             else:
+                self._ensure_raw_pid_operations_valid(pid)
                 handle = self._handles.get(pid)
             if handle is None:
                 raise BackendOperationError(f"no command handle for pid {pid}")
@@ -250,6 +259,8 @@ class _CommandsDriver:
             tracked = self._tracked_handle(pid)
             if tracked is not None:
                 self._ensure_generation_valid(tracked)
+            else:
+                self._ensure_raw_pid_operations_valid(pid)
             try:
                 return bool(self._commands.kill(int(pid)))
             except Exception as error:
@@ -264,6 +275,8 @@ class _CommandsDriver:
             tracked = self._tracked_handle(pid)
             if tracked is not None:
                 self._ensure_generation_valid(tracked)
+            else:
+                self._ensure_raw_pid_operations_valid(pid)
             try:
                 self._commands.send_stdin(int(pid), data, eof)
             except Exception as error:
