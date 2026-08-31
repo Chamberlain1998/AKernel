@@ -29,7 +29,7 @@ from akernel_sdk import sandbox as sandbox_module
 from akernel_sdk._dockercontext import LocalDockerContext
 from akernel_sdk._dockerfile import DockerfileBuildError, DockerfileParseError
 from akernel_sdk._dockerfile_runner import DockerfileApplyResult
-from akernel_sdk.types import SandboxInfo
+from akernel_sdk.types import CommandResult, SandboxInfo
 
 
 class SandboxTest(unittest.TestCase):
@@ -98,11 +98,27 @@ class SandboxTest(unittest.TestCase):
         before = (sandbox.commands, sandbox.files, sandbox.pty, sandbox._session)
 
         self.assertIs(sandbox.reload(), True)
-        self.assertEqual(
+        for current, original in zip(
             (sandbox.commands, sandbox.files, sandbox.pty, sandbox._session),
             before,
-        )
+            strict=True,
+        ):
+            self.assertIs(current, original)
         self.session.reload.assert_called_once_with()
+
+    def test_completed_command_result_stays_readable_after_reload(self):
+        completed = CommandResult("completed\n", "", 0)
+        self.session.commands.run.return_value = completed
+        self.session.reload.return_value = True
+        sandbox = Sandbox()
+
+        result = sandbox.commands.run("printf completed")
+        self.assertIs(sandbox.reload(), True)
+
+        self.assertIs(result, completed)
+        self.assertEqual(result.stdout, "completed\n")
+        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.exit_code, 0)
 
     def test_reload_returns_false_after_close(self):
         sandbox = Sandbox()

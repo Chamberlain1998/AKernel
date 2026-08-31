@@ -221,18 +221,23 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
         ):
             session = self.backend.create(_spec())
 
+        native_session = session._sandbox
+        commands = session.commands
+        files = session.files
+
         self.assertIs(session.reload(), True)
+        self.assertIs(session._sandbox, native_session)
+        self.assertIs(session.commands, commands)
+        self.assertIs(session.files, files)
         native.reload.assert_called_once_with()
 
-    def test_incomplete_old_command_handle_fails_after_cold_start(self):
+    def test_old_handle_native_failure_marks_generation_with_explicit_error(self):
         native = MagicMock()
         native.id = "default-cold-start-handle"
         native.reload.return_value = True
         old_handle = MagicMock()
         old_handle.pid = 321
-        old_handle.wait.side_effect = RuntimeError(
-            "process handle is unavailable after cold start"
-        )
+        old_handle.wait.side_effect = RuntimeError("opaque native failure")
         native.commands.run.return_value = old_handle
         with patch.object(
             openyuanrong_sandbox.yr_sandbox,
@@ -247,9 +252,149 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
         self.assertIs(session.reload(), True)
 
         with self.assertRaisesRegex(
-            BackendOperationError, "unavailable after cold start"
-        ):
+            BackendOperationError,
+            "pre-reload command handle was not restored after sandbox cold start",
+        ) as raised:
             session.commands.wait(pid, 30)
+
+        self.assertNotIn("opaque native failure", str(raised.exception))
+
+    def test_invalid_old_generation_fails_closed_without_pid_operations(self):
+        native = MagicMock()
+        native.id = "default-cold-start-generation"
+        native.reload.return_value = True
+        failed_handle = MagicMock(pid=321)
+        failed_handle.wait.side_effect = RuntimeError("native process missing")
+        second_handle = MagicMock(pid=654)
+        native.commands.run.side_effect = [failed_handle, second_handle]
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec())
+
+        failed_pid = session.commands.start(
+            "sleep 60", envs=None, cwd=None, stdin=False
+        )
+        second_pid = session.commands.start(
+            "cat", envs=None, cwd=None, stdin=True
+        )
+        self.assertIs(session.reload(), True)
+        with self.assertRaises(BackendOperationError):
+            session.commands.wait(failed_pid, 30)
+
+        with self.assertRaisesRegex(
+            BackendOperationError,
+            "pre-reload command handle was not restored after sandbox cold start",
+        ):
+            session.commands.kill(second_pid)
+        with self.assertRaisesRegex(
+            BackendOperationError,
+            "pre-reload command handle was not restored after sandbox cold start",
+        ):
+            session.commands.send_stdin(second_pid, "input", False)
+
+        native.commands.kill.assert_not_called()
+        native.commands.send_stdin.assert_not_called()
+
+    def test_new_generation_handle_works_after_old_generation_is_invalid(self):
+        native = MagicMock()
+        native.id = "default-new-generation"
+        native.reload.return_value = True
+        old_handle = MagicMock(pid=321)
+        old_handle.wait.side_effect = RuntimeError("native process missing")
+        new_handle = MagicMock(pid=321)
+        new_handle.wait.return_value = SimpleNamespace(
+            stdout="new runtime\n",
+            stderr="",
+            exit_code=0,
+        )
+        native.commands.run.side_effect = [old_handle, new_handle]
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec())
+
+        old_pid = session.commands.start(
+            "sleep 60", envs=None, cwd=None, stdin=False
+        )
+        self.assertIs(session.reload(), True)
+        with self.assertRaises(BackendOperationError):
+            session.commands.wait(old_pid, 30)
+        new_pid = session.commands.start(
+            "printf new", envs=None, cwd=None, stdin=False
+        )
+
+        with self.assertRaisesRegex(
+            BackendOperationError,
+            "pre-reload command handle was not restored after sandbox cold start",
+        ):
+            session.commands.wait(old_pid, 30)
+        self.assertEqual(
+            session.commands.wait(new_pid, 30),
+            CommandResult("new runtime\n", "", 0),
+        )
+        old_handle.wait.assert_called_once_with(30)
+        new_handle.wait.assert_called_once_with(30)
+
+    def test_snapshot_like_old_handle_native_success_remains_valid(self):
+        native = MagicMock()
+        native.id = "default-snapshot-handle"
+        native.reload.return_value = True
+        old_handle = MagicMock(pid=321)
+        old_handle.wait.return_value = SimpleNamespace(
+            stdout="restored\n",
+            stderr="",
+            exit_code=0,
+        )
+        native.commands.run.return_value = old_handle
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec())
+
+        pid = session.commands.start(
+            "sleep 1", envs=None, cwd=None, stdin=False
+        )
+        self.assertIs(session.reload(), True)
+
+        self.assertEqual(
+            session.commands.wait(pid, 30),
+            CommandResult("restored\n", "", 0),
+        )
+
+    def test_reload_false_does_not_advance_or_invalidate_handle_generation(self):
+        native = MagicMock()
+        native.id = "default-failed-reload-handle"
+        native.reload.return_value = False
+        old_handle = MagicMock(pid=321)
+        old_handle.wait.return_value = SimpleNamespace(
+            stdout="still running\n",
+            stderr="",
+            exit_code=0,
+        )
+        native.commands.run.return_value = old_handle
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec())
+
+        pid = session.commands.start(
+            "sleep 1", envs=None, cwd=None, stdin=False
+        )
+        self.assertIs(session.reload(), False)
+
+        self.assertEqual(
+            session.commands.wait(pid, 30),
+            CommandResult("still running\n", "", 0),
+        )
 
     def test_explicit_kata_image_is_forwarded_to_native_sdk(self):
         native = MagicMock()

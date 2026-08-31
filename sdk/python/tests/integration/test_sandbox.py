@@ -178,12 +178,11 @@ class SandboxColdRecoveryIntegrationTest(unittest.TestCase):
                 sandbox.commands.run("printf command-after-cold-start").stdout,
                 "command-after-cold-start",
             )
-            try:
-                old_result = pending.wait(timeout=10)
-            except BackendOperationError:
-                pass
-            else:
-                self.assertNotEqual(old_result.exit_code, 0)
+            with self.assertRaisesRegex(
+                BackendOperationError,
+                "pre-reload command handle was not restored after sandbox cold start",
+            ):
+                pending.wait(timeout=10)
         finally:
             sandbox.kill()
 
