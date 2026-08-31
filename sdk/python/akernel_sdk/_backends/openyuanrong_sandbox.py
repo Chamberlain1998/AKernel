@@ -19,7 +19,8 @@ from __future__ import annotations
 import inspect
 import os
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from typing import Any
 
 import yr_sandbox
@@ -44,6 +45,9 @@ _NAMESPACE = "default"
 _DEFAULT_LISTEN_PORT = 8766
 _COLD_START_HANDLE_ERROR = (
     "pre-reload command handle was not restored after sandbox cold start"
+)
+_COMMAND_OPERATION_CONFLICT = (
+    "command operation unavailable while another sandbox operation is in flight"
 )
 
 
@@ -103,12 +107,33 @@ class _CommandsDriver:
         self._generation = 0
         self._invalid_generations: set[int] = set()
         self._generation_lock = threading.Lock()
+        self._operation_guard = threading.RLock()
 
-    def advance_generation(self) -> None:
-        """Record one successful reload without assuming its recovery mode."""
+    @contextmanager
+    def _command_operation(self) -> Iterator[None]:
+        if not self._operation_guard.acquire(blocking=False):
+            raise BackendOperationError(_COMMAND_OPERATION_CONFLICT)
+        try:
+            yield
+        finally:
+            self._operation_guard.release()
 
-        with self._generation_lock:
-            self._generation += 1
+    def reload(self, native_reload: Callable[[], Any]) -> bool:
+        """Run native reload and its generation commit as one boundary."""
+
+        if not self._operation_guard.acquire(blocking=False):
+            return False
+        try:
+            try:
+                reloaded = bool(native_reload())
+            except Exception:
+                return False
+            if reloaded:
+                with self._generation_lock:
+                    self._generation += 1
+            return reloaded
+        finally:
+            self._operation_guard.release()
 
     def _current_generation(self) -> int:
         with self._generation_lock:
@@ -147,16 +172,17 @@ class _CommandsDriver:
         cwd: str | None,
         timeout: int,
     ) -> CommandResult:
-        try:
-            value = self._commands.run(
-                cmd,
-                envs=dict(envs) if envs is not None else None,
-                cwd=cwd,
-                timeout=timeout,
-            )
-            return _command_result(value)
-        except Exception as error:
-            raise _convert_error("command execution", error) from error
+        with self._command_operation():
+            try:
+                value = self._commands.run(
+                    cmd,
+                    envs=dict(envs) if envs is not None else None,
+                    cwd=cwd,
+                    timeout=timeout,
+                )
+                return _command_result(value)
+            except Exception as error:
+                raise _convert_error("command execution", error) from error
 
     def start(
         self,
@@ -166,64 +192,75 @@ class _CommandsDriver:
         cwd: str | None,
         stdin: bool,
     ) -> int:
-        generation = self._current_generation()
-        try:
-            handle = self._commands.run(
-                cmd,
-                background=True,
-                envs=dict(envs) if envs is not None else None,
-                cwd=cwd,
-                stdin=stdin,
-            )
-        except Exception as error:
-            raise _convert_error("background command start", error) from error
-        pid = int(handle.pid)
-        self._handles[pid] = handle
-        return _TrackedCommandPid(pid, generation, handle)
+        with self._command_operation():
+            generation = self._current_generation()
+            try:
+                handle = self._commands.run(
+                    cmd,
+                    background=True,
+                    envs=dict(envs) if envs is not None else None,
+                    cwd=cwd,
+                    stdin=stdin,
+                )
+            except Exception as error:
+                raise _convert_error("background command start", error) from error
+            pid = int(handle.pid)
+            self._handles[pid] = handle
+            return _TrackedCommandPid(pid, generation, handle)
 
     def wait(self, pid: int, timeout: int | None) -> CommandResult:
-        tracked = self._tracked_handle(pid)
-        if tracked is not None:
-            self._ensure_generation_valid(tracked)
-            handle = tracked.native_handle
-        else:
-            handle = self._handles.get(pid)
-        if handle is None:
-            raise BackendOperationError(f"no command handle for pid {pid}")
-        try:
-            return _command_result(handle.wait(timeout))
-        except Exception as error:
-            if tracked is not None and self._invalidate_pre_reload_generation(tracked):
-                raise self._cold_start_handle_error(pid) from error
-            raise _convert_error(f"wait for process {pid}", error) from error
+        with self._command_operation():
+            tracked = self._tracked_handle(pid)
+            if tracked is not None:
+                self._ensure_generation_valid(tracked)
+                handle = tracked.native_handle
+            else:
+                handle = self._handles.get(pid)
+            if handle is None:
+                raise BackendOperationError(f"no command handle for pid {pid}")
+            try:
+                return _command_result(handle.wait(timeout))
+            except Exception as error:
+                if tracked is not None and self._invalidate_pre_reload_generation(
+                    tracked
+                ):
+                    raise self._cold_start_handle_error(pid) from error
+                raise _convert_error(f"wait for process {pid}", error) from error
 
     def kill(self, pid: int) -> bool:
-        tracked = self._tracked_handle(pid)
-        if tracked is not None:
-            self._ensure_generation_valid(tracked)
-        try:
-            return bool(self._commands.kill(int(pid)))
-        except Exception as error:
-            if tracked is not None and self._invalidate_pre_reload_generation(tracked):
-                raise self._cold_start_handle_error(pid) from error
-            raise _convert_error(f"kill process {pid}", error) from error
+        with self._command_operation():
+            tracked = self._tracked_handle(pid)
+            if tracked is not None:
+                self._ensure_generation_valid(tracked)
+            try:
+                return bool(self._commands.kill(int(pid)))
+            except Exception as error:
+                if tracked is not None and self._invalidate_pre_reload_generation(
+                    tracked
+                ):
+                    raise self._cold_start_handle_error(pid) from error
+                raise _convert_error(f"kill process {pid}", error) from error
 
     def send_stdin(self, pid: int, data: str, eof: bool) -> None:
-        tracked = self._tracked_handle(pid)
-        if tracked is not None:
-            self._ensure_generation_valid(tracked)
-        try:
-            self._commands.send_stdin(int(pid), data, eof)
-        except Exception as error:
-            if tracked is not None and self._invalidate_pre_reload_generation(tracked):
-                raise self._cold_start_handle_error(pid) from error
-            raise _convert_error(f"send stdin to process {pid}", error) from error
+        with self._command_operation():
+            tracked = self._tracked_handle(pid)
+            if tracked is not None:
+                self._ensure_generation_valid(tracked)
+            try:
+                self._commands.send_stdin(int(pid), data, eof)
+            except Exception as error:
+                if tracked is not None and self._invalidate_pre_reload_generation(
+                    tracked
+                ):
+                    raise self._cold_start_handle_error(pid) from error
+                raise _convert_error(f"send stdin to process {pid}", error) from error
 
     def list(self) -> list[CommandInfo]:
-        try:
-            return [_command_info(value) for value in self._commands.list()]
-        except Exception as error:
-            raise _convert_error("list processes", error) from error
+        with self._command_operation():
+            try:
+                return [_command_info(value) for value in self._commands.list()]
+            except Exception as error:
+                raise _convert_error("list processes", error) from error
 
 
 class _FilesystemDriver:
@@ -334,13 +371,7 @@ class _Session:
     def reload(self) -> bool:
         if self._terminated or self._closed:
             return False
-        try:
-            reloaded = bool(self._sandbox.reload())
-        except Exception:
-            return False
-        if reloaded:
-            self.commands.advance_generation()
-        return reloaded
+        return self.commands.reload(self._sandbox.reload)
 
     def checkpoint(self, *, timeout: int) -> str:
         if self._terminated or self._closed:
