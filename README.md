@@ -119,12 +119,15 @@ python -m pip install akernel-sdk
 # Source
 python -m pip install ./sdk/python
 
-# Also install the actor backend
+# Also install the deprecated actor compatibility backend
 python -m pip install "akernel-sdk[openyuanrong-sdk]"
 ```
 
-When the actor extra is installed, both backend packages are present and
-`openyuanrong-sandbox` remains the automatic default. Set
+The actor-based `openyuanrong-sdk` backend is deprecated and retained only for
+compatibility with existing applications. New applications should use the
+default `openyuanrong-sandbox` backend. When the actor extra is installed,
+both backend packages are present and `openyuanrong-sandbox` remains the
+automatic default. Set
 `AKERNEL_BACKEND=openyuanrong-sdk` before importing `akernel_sdk` to select
 the actor backend:
 
@@ -206,7 +209,7 @@ See the complete [basic usage example](./sdk/python/examples/basic_usage.py), th
 - [x] Kata Containers runtime on KVM-capable nodes
 - [x] Firecracker microVM runtime on KVM-capable nodes
 - [x] Optional native Linux runc runtime
-- [x] Sandbox network ACL
+- [x] Stateful sandbox network ACLs for CIDRs, domains, protocols, and ports
 - [ ] Fork-based sandbox launch based on gVisor
 - [x] Same-node checkpoint recovery for runsc and Firecracker
 - [ ] Support for GKE and AWS

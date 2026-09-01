@@ -15,9 +15,9 @@ which owns availability and compatibility checks. The bundled deployment also
 advertises Kata Containers and Firecracker on KVM-capable nodes. The native
 Linux runc payload is build-time optional and must be explicitly included and
 enabled by an operator.
-Creation-time network policies support unrestricted networking, blocking new
-flows except the YuanRong control and published sandbox-port routes, or denying
-exact and leading-wildcard DNS names.
+Creation-time network policies and atomic runtime replacement support
+unrestricted networking, blocking new flows except the YuanRong control and
+published sandbox-port routes, or denying exact and leading-wildcard DNS names.
 Experimental whole-device NVIDIA GPU requests require runsc. Configurable
 writable-storage requests are supported by runsc and Firecracker.
 
@@ -124,9 +124,10 @@ node components and produces the AKernel all-in-one image using the selected
 runtime image and its matching service configuration.
 
 The control-plane and RRT release version is independent of the optional
-actor-based `openyuanrong_sdk` installed in the Python runtime profile. Keep
-the latter on its explicitly pinned legacy version unless that backend is
-being upgraded and tested as a separate compatibility change.
+actor-based `openyuanrong_sdk` installed in the Python runtime profile. This
+actor backend is deprecated and retained only for compatibility with existing
+applications. Keep it on its explicitly pinned legacy version; do not advance
+it with the default `openyuanrong-sandbox` backend or use it for new features.
 
 Initialize submodules with `git submodule update --init --recursive` before
 building. The all-in-one image builds the sandboxd binaries, including
@@ -219,14 +220,19 @@ usable `/dev/kvm` device.
 
 The bundled sandboxd configuration enables per-sandbox network ACLs. Pooled TAP
 networking requires the host `tun` module and a usable `/dev/net/tun`. The
-default iptables backend additionally requires `br_netfilter`, conntrack,
-connmark/CONNMARK, and bridge netfilter. The optional bpfnat backend instead
-requires eBPF `SCHED_CLS`, TC `clsact`, writable bpffs, and permission to load
-BPF programs and manage TC filters. Both require free TCP/UDP port 53 on the
-sandbox bridge. Drain existing sandboxes before enabling ACLs or upgrading a
+default iptables backend additionally requires `iptables`, `ip6tables`,
+`ipset`, IPv4/IPv6 filter tables, `br_netfilter`, `xt_physdev`, conntrack,
+conntrack-netlink, connmark/CONNMARK, timeout-capable `hash:ip` sets, and
+IPv4/IPv6 bridge netfilter. The optional bpfnat backend
+instead requires Linux 5.17 or newer for `bpf_loop`, eBPF `SCHED_CLS`, TC
+`clsact`, writable bpffs, and permission to load BPF programs and manage TC
+filters. Both require free TCP/UDP port 53 on the sandbox bridge. Drain
+existing sandboxes before enabling ACLs or upgrading a
 node from a pre-ACL configuration; sandboxd refuses to initialize ACLs when
 old sandbox records remain. A sandbox without a network policy stays
-unrestricted. See `deploy/README.md` for deployment requirements and
+unrestricted. Schema v2 supports independent ingress and egress defaults,
+allow and deny rules over IPv4 CIDRs, domains, protocols, and ports, plus an
+independent DNS policy. See `deploy/README.md` for deployment requirements and
 `sdk/python/README.md` for API limits.
 
 Dragonfly distribution is optional and disabled by default. Enable it during
@@ -352,6 +358,18 @@ with Sandbox(network_policy=NetworkPolicy.block()) as sb:
     print(sb.commands.run("echo control-plane-access").stdout)
 ```
 
+Configure a generic egress allowlist:
+
+```python
+from akernel_sdk import NetworkPolicy, NetworkRule
+
+policy = NetworkPolicy.allowlist(
+    [NetworkRule(domain="*.example.com", protocol="tcp", port_range=443)]
+)
+with Sandbox(network_policy=policy) as sb:
+    print(sb.commands.run("curl https://api.example.com").stdout)
+```
+
 Required environment:
 
 ```bash
@@ -428,14 +446,16 @@ make sdk-check
 ```
 
 The Python SDK installs `openyuanrong-sandbox` as its default execution
-backend. The actor-based `openyuanrong-sdk` backend is available through the
-`openyuanrong-sdk` extra. Installing that extra leaves both distributions
-present, so `openyuanrong-sandbox` remains the automatic default unless
-`AKERNEL_BACKEND=openyuanrong-sdk` is set before import. Backend selection
-happens once during import and backend modules are loaded lazily on first use.
-Keep public `Sandbox`, `Commands`, `Filesystem`, and value types independent
-of both native packages; all native conversions belong under
-`akernel_sdk._backends`.
+backend. The actor-based `openyuanrong-sdk` backend is deprecated and retained
+only for compatibility with existing applications through the
+`openyuanrong-sdk` extra. Do not update its pinned legacy version alongside
+the default backend or extend it with new capabilities. Installing that extra
+leaves both distributions present, so `openyuanrong-sandbox` remains the
+automatic default unless `AKERNEL_BACKEND=openyuanrong-sdk` is set before
+import. Backend selection happens once during import and backend modules are
+loaded lazily on first use. Keep public `Sandbox`, `Commands`, `Filesystem`,
+and value types independent of both native packages; all native conversions
+belong under `akernel_sdk._backends`.
 
 Dockerfile direct launch is a supported AKernel SDK capability through
 `DockerContext` and

@@ -37,6 +37,8 @@ from akernel_sdk.types import (
     HttpReverseTunnel,
     Mount,
     NetworkPolicy,
+    NetworkRule,
+    PortRange,
     S3Config,
 )
 
@@ -362,6 +364,40 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
         self.assertEqual(network.dns_blacklist, ("github.com", "*.github.com"))
         session.close()
 
+    def test_create_converts_acl_v2_to_native_sdk_types(self):
+        native = MagicMock()
+        native.id = "default-worker"
+        native.commands = MagicMock()
+        native.files = MagicMock()
+        policy = NetworkPolicy.allowlist(
+            [
+                NetworkRule(
+                    domain="api.github.com",
+                    protocol="tcp",
+                    port_range=PortRange(80, 443),
+                    priority=110,
+                )
+            ]
+        )
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ) as sandbox_type:
+            session = self.backend.create(_spec(network_policy=policy))
+
+        network = sandbox_type.call_args.kwargs["network"]
+        self.assertEqual(network.to_dict(), policy.to_dict())
+        self.assertIsInstance(
+            network.traffic.rules[0],
+            openyuanrong_sandbox.yr_sandbox.NetworkRule,
+        )
+        self.assertIsInstance(
+            network.traffic.rules[0].port_range,
+            openyuanrong_sandbox.yr_sandbox.PortRange,
+        )
+        session.close()
+
     def test_terminate_forces_deletion_of_detached_native_sandbox(self):
         native = MagicMock()
         native.id = "default-worker"
@@ -415,9 +451,7 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
                 None,
             ]
             session = self.backend.create(_spec(detached=True))
-            with self.assertRaisesRegex(
-                BackendOperationError, "remote delete failed"
-            ):
+            with self.assertRaisesRegex(BackendOperationError, "remote delete failed"):
                 try:
                     session.terminate()
                 finally:
@@ -556,6 +590,31 @@ class OpenYuanRongSandboxBackendTest(unittest.TestCase):
             "does not support sandbox reload",
         ):
             session.reload()
+
+    def test_update_network_policy_converts_native_type_and_clears(self):
+        native = MagicMock()
+        native.id = "default-source"
+        native.commands = MagicMock()
+        native.files = MagicMock()
+        with patch.object(
+            openyuanrong_sandbox.yr_sandbox,
+            "Sandbox",
+            return_value=native,
+        ):
+            session = self.backend.create(_spec())
+
+        policy = NetworkPolicy.deny_dns("github.com")
+        session.update_network_policy(policy)
+        session.update_network_policy(None)
+
+        native_policy = native.update_network_policy.call_args_list[0].args[0]
+        self.assertIsInstance(
+            native_policy,
+            openyuanrong_sandbox.yr_sandbox.NetworkPolicy,
+        )
+        self.assertEqual(native_policy.to_dict(), policy.to_dict())
+        self.assertIsNone(native.update_network_policy.call_args_list[1].args[0])
+
 
 class OpenYuanRongSdkBackendTest(unittest.TestCase):
     def setUp(self):
@@ -701,6 +760,16 @@ class OpenYuanRongSdkBackendTest(unittest.TestCase):
             self.backend.close()
 
         finalize.assert_called_once_with()
+
+    def test_dynamic_network_policy_is_explicitly_unsupported(self):
+        session = openyuanrong_sdk._Session(MagicMock(), "physical-id", _spec(), None)
+
+        with self.assertRaisesRegex(
+            UnsupportedBackendFeatureError,
+            "does not support dynamic network policy",
+        ):
+            session.update_network_policy(NetworkPolicy.block())
+
 
 if __name__ == "__main__":
     unittest.main()
